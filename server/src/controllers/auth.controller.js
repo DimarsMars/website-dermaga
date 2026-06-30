@@ -6,6 +6,20 @@ const pool = require('../config/db');
 const SALT_ROUNDS = 12;
 
 /**
+ * PostgreSQL unique-violation error code (23505). Used by unique email checks.
+ */
+const PG_UNIQUE_VIOLATION = '23505';
+
+/**
+ * If the given error is a PostgreSQL unique violation on the email column,
+ * return true. Used to translate DB errors into 409 responses.
+ */
+function isDuplicateEmailError(err) {
+  return err && err.code === PG_UNIQUE_VIOLATION &&
+    typeof err.constraint === 'string' && err.constraint.includes('email');
+}
+
+/**
  * Generate access token (15 min) and refresh token (7 days).
  */
 function generateTokens(payload) {
@@ -18,13 +32,25 @@ function generateTokens(payload) {
   return { accessToken, refreshToken };
 }
 
+const isProduction = process.env.NODE_ENV === 'production';
+
 /**
  * Verify Google reCAPTCHA token server-side.
+ *
+ * Returns an object { valid, error } so callers can distinguish between
+ * "skipped in development" and "verification failed".
  */
 async function verifyRecaptcha(token) {
   if (!process.env.RECAPTCHA_SECRET_KEY) {
-    // Skip verification if secret key is not configured (development)
-    return true;
+    if (isProduction) {
+      return { valid: false, error: 'reCAPTCHA secret key not configured on server' };
+    }
+    // Skip verification in development when secret key is not configured
+    return { valid: true };
+  }
+
+  if (!token) {
+    return { valid: false, error: 'reCAPTCHA token is required' };
   }
 
   try {
@@ -37,10 +63,10 @@ async function verifyRecaptcha(token) {
       }
     );
     const data = await response.json();
-    return data.success === true;
+    return { valid: data.success === true };
   } catch (err) {
     console.error('reCAPTCHA verification error:', err.message);
-    return false;
+    return { valid: false, error: 'reCAPTCHA verification failed' };
   }
 }
 
@@ -50,17 +76,30 @@ async function verifyRecaptcha(token) {
  */
 async function register(req, res) {
   try {
-    const { username, password, agency_name, npwp, company_address, phone_number, email, recaptchaToken } = req.body;
+    // Accept both camelCase (client) and snake_case (legacy/test) field names
+    const body = req.body || {};
+    const username = body.username;
+    const password = body.password;
+    const agency_name = body.agencyName ?? body.agency_name;
+    const npwp = body.npwp;
+    const company_address = body.address ?? body.company_address;
+    const phone_number = body.phone ?? body.phone_number;
+    const email = body.email;
+    const recaptchaToken = body.recaptchaToken;
 
-    // Verify reCAPTCHA
-    if (recaptchaToken) {
-      const captchaValid = await verifyRecaptcha(recaptchaToken);
-      if (!captchaValid) {
-        return res.status(400).json({
-          success: false,
-          error: { code: 'RECAPTCHA_FAILED', message: 'reCAPTCHA verification failed' },
-        });
-      }
+    // Verify reCAPTCHA (mandatory in production)
+    if (isProduction && !recaptchaToken) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'RECAPTCHA_REQUIRED', message: 'reCAPTCHA token is required' },
+      });
+    }
+    const captchaResult = await verifyRecaptcha(recaptchaToken);
+    if (!captchaResult.valid) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'RECAPTCHA_FAILED', message: captchaResult.error || 'reCAPTCHA verification failed' },
+      });
     }
 
     // Check if username already exists
@@ -75,16 +114,39 @@ async function register(req, res) {
       });
     }
 
+    // Check if email already exists
+    const existingEmail = await pool.query(
+      'SELECT id_agen FROM master_agen WHERE email = $1',
+      [email]
+    );
+    if (existingEmail.rows.length > 0) {
+      return res.status(409).json({
+        success: false,
+        error: { code: 'VALIDATION_FIELDS', message: 'Email already registered' },
+      });
+    }
+
     // Hash password
     const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
 
     // Insert new agent
-    const result = await pool.query(
-      `INSERT INTO master_agen (username, password, agency_name, npwp, company_address, phone_number, email)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING id_agen, username, agency_name, email, created_at`,
-      [username, hashedPassword, agency_name, npwp || null, company_address || null, phone_number || null, email || null]
-    );
+    let result;
+    try {
+      result = await pool.query(
+        `INSERT INTO master_agen (username, password, agency_name, npwp, company_address, phone_number, email)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING id_agen, username, agency_name, email, created_at`,
+        [username, hashedPassword, agency_name, npwp || null, company_address || null, phone_number || null, email || null]
+      );
+    } catch (insertErr) {
+      if (isDuplicateEmailError(insertErr)) {
+        return res.status(409).json({
+          success: false,
+          error: { code: 'VALIDATION_FIELDS', message: 'Email already registered' },
+        });
+      }
+      throw insertErr;
+    }
 
     return res.status(201).json({
       success: true,
@@ -108,15 +170,19 @@ async function login(req, res) {
   try {
     const { username, password, recaptchaToken } = req.body;
 
-    // Verify reCAPTCHA
-    if (recaptchaToken) {
-      const captchaValid = await verifyRecaptcha(recaptchaToken);
-      if (!captchaValid) {
-        return res.status(400).json({
-          success: false,
-          error: { code: 'RECAPTCHA_FAILED', message: 'reCAPTCHA verification failed' },
-        });
-      }
+    // Verify reCAPTCHA (mandatory in production)
+    if (isProduction && !recaptchaToken) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'RECAPTCHA_REQUIRED', message: 'reCAPTCHA token is required' },
+      });
+    }
+    const captchaResult = await verifyRecaptcha(recaptchaToken);
+    if (!captchaResult.valid) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'RECAPTCHA_FAILED', message: captchaResult.error || 'reCAPTCHA verification failed' },
+      });
     }
 
     // Try to find user in master_agen first
@@ -491,16 +557,39 @@ async function createOfficer(req, res) {
       });
     }
 
+    // Check if email already exists
+    const existingEmail = await pool.query(
+      'SELECT id_petugas FROM master_petugas WHERE email = $1',
+      [email]
+    );
+    if (existingEmail.rows.length > 0) {
+      return res.status(409).json({
+        success: false,
+        error: { code: 'VALIDATION_FIELDS', message: 'Email already registered' },
+      });
+    }
+
     // Hash password
     const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
 
     // Insert new officer
-    const result = await pool.query(
-      `INSERT INTO master_petugas (employee_id, username, password, name, phone_number, email, user_role)
-       VALUES ($1, $2, $3, $4, $5, $6, 'petugas')
-       RETURNING id_petugas, employee_id, username, name, phone_number, email, user_role, created_at`,
-      [employee_id, username, hashedPassword, name, phone_number || null, email || null]
-    );
+    let result;
+    try {
+      result = await pool.query(
+        `INSERT INTO master_petugas (employee_id, username, password, name, phone_number, email, user_role)
+         VALUES ($1, $2, $3, $4, $5, $6, 'petugas')
+         RETURNING id_petugas, employee_id, username, name, phone_number, email, user_role, created_at`,
+        [employee_id, username, hashedPassword, name, phone_number || null, email || null]
+      );
+    } catch (insertErr) {
+      if (isDuplicateEmailError(insertErr)) {
+        return res.status(409).json({
+          success: false,
+          error: { code: 'VALIDATION_FIELDS', message: 'Email already registered' },
+        });
+      }
+      throw insertErr;
+    }
 
     return res.status(201).json({
       success: true,
@@ -521,7 +610,7 @@ async function createOfficer(req, res) {
  */
 async function createAdmin(req, res) {
   try {
-    const { employee_id, username, password, name, phone_number } = req.body;
+    const { employee_id, username, password, name, phone_number, email } = req.body;
 
     // Check if username or employee_id already exists
     const existing = await pool.query(
@@ -535,16 +624,39 @@ async function createAdmin(req, res) {
       });
     }
 
+    // Check if email already exists
+    const existingEmail = await pool.query(
+      'SELECT id_petugas FROM master_petugas WHERE email = $1',
+      [email]
+    );
+    if (existingEmail.rows.length > 0) {
+      return res.status(409).json({
+        success: false,
+        error: { code: 'VALIDATION_FIELDS', message: 'Email already registered' },
+      });
+    }
+
     // Hash password
     const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
 
     // Insert new admin
-    const result = await pool.query(
-      `INSERT INTO master_petugas (employee_id, username, password, name, phone_number, user_role)
-       VALUES ($1, $2, $3, $4, $5, 'admin')
-       RETURNING id_petugas, employee_id, username, name, phone_number, user_role, created_at`,
-      [employee_id, username, hashedPassword, name, phone_number || null]
-    );
+    let result;
+    try {
+      result = await pool.query(
+        `INSERT INTO master_petugas (employee_id, username, password, name, phone_number, email, user_role)
+         VALUES ($1, $2, $3, $4, $5, $6, 'admin')
+         RETURNING id_petugas, employee_id, username, name, phone_number, email, user_role, created_at`,
+        [employee_id, username, hashedPassword, name, phone_number || null, email || null]
+      );
+    } catch (insertErr) {
+      if (isDuplicateEmailError(insertErr)) {
+        return res.status(409).json({
+          success: false,
+          error: { code: 'VALIDATION_FIELDS', message: 'Email already registered' },
+        });
+      }
+      throw insertErr;
+    }
 
     return res.status(201).json({
       success: true,
