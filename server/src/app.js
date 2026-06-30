@@ -7,7 +7,20 @@ const rateLimit = require('express-rate-limit');
 const app = express();
 
 // Security headers
-app.use(helmet());
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", 'https://www.google.com', 'https://www.gstatic.com'],
+        frameSrc: ["'self'", 'https://www.google.com', 'https://recaptcha.google.com'],
+        styleSrc: ["'self'", "'unsafe-inline'", 'https://www.google.com'],
+        imgSrc: ["'self'", 'data:', 'blob:'],
+        connectSrc: ["'self'", 'https://www.google.com'],
+      },
+    },
+  })
+);
 
 // CORS configuration
 app.use(cors({
