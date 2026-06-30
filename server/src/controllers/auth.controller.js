@@ -86,19 +86,25 @@ async function register(req, res) {
     const email = body.email;
     const recaptchaToken = body.recaptchaToken;
 
-    // Verify reCAPTCHA (mandatory in production)
-    if (isProduction && !recaptchaToken) {
-      return res.status(400).json({
-        success: false,
-        error: { code: 'RECAPTCHA_REQUIRED', message: 'reCAPTCHA token is required' },
-      });
-    }
-    const captchaResult = await verifyRecaptcha(recaptchaToken);
-    if (!captchaResult.valid) {
-      return res.status(400).json({
-        success: false,
-        error: { code: 'RECAPTCHA_FAILED', message: captchaResult.error || 'reCAPTCHA verification failed' },
-      });
+    // Verify reCAPTCHA (mandatory in production for public self-registration).
+    // Authenticated admins/petugas creating an agent account (via
+    // MasterAgenPage) are already trusted — skip captcha for them so the
+    // admin form doesn't need to embed a reCAPTCHA widget.
+    const isTrustedCaller = req.user && (req.user.role === 'admin' || req.user.role === 'petugas');
+    if (!isTrustedCaller) {
+      if (isProduction && !recaptchaToken) {
+        return res.status(400).json({
+          success: false,
+          error: { code: 'RECAPTCHA_REQUIRED', message: 'reCAPTCHA token is required' },
+        });
+      }
+      const captchaResult = await verifyRecaptcha(recaptchaToken);
+      if (!captchaResult.valid) {
+        return res.status(400).json({
+          success: false,
+          error: { code: 'RECAPTCHA_FAILED', message: captchaResult.error || 'reCAPTCHA verification failed' },
+        });
+      }
     }
 
     // Check if username already exists

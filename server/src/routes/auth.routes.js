@@ -2,7 +2,7 @@ const express = require('express');
 const Joi = require('joi');
 const router = express.Router();
 const authController = require('../controllers/auth.controller');
-const { authenticateToken } = require('../middleware/auth.middleware');
+const { authenticateToken, optionalAuth } = require('../middleware/auth.middleware');
 const { authorize } = require('../middleware/role.middleware');
 
 // ============================================================
@@ -19,9 +19,10 @@ const passwordSchema = Joi.string()
 const registerSchema = Joi.object({
   username: Joi.string().min(3).max(50).alphanum().required(),
   password: passwordSchema,
-  // Accept both camelCase (from client) and snake_case (legacy) naming
-  agencyName: Joi.string().min(2).max(100).required(),
-  agency_name: Joi.string().min(2).max(100).optional().prefs({ stripUnknown: false }),
+  // Accept both camelCase (from RegisterPage client) and snake_case
+  // (from MasterAgenPage admin form). At least one must be present.
+  agencyName: Joi.string().min(2).max(100).allow('', null).optional(),
+  agency_name: Joi.string().min(2).max(100).allow('', null).optional(),
   npwp: Joi.string().max(20).allow('', null).optional(),
   address: Joi.string().max(500).allow('', null).optional(),
   company_address: Joi.string().max(500).allow('', null).optional(),
@@ -109,8 +110,11 @@ function validate(schema) {
 /**
  * POST /api/auth/register
  * Agent (Agen_Kapal) registration - public endpoint.
+ * Also used by authenticated admins (MasterAgenPage) to create an agent
+ * account on behalf of a user. When an authenticated petugas/admin is the
+ * caller, reCAPTCHA is skipped (they are already trusted).
  */
-router.post('/register', validate(registerSchema), authController.register);
+router.post('/register', optionalAuth, validate(registerSchema), authController.register);
 
 /**
  * POST /api/auth/login

@@ -82,4 +82,36 @@ async function getCurrentTokenVersion(id, userType) {
   return Number(result.rows[0].token_version);
 }
 
-module.exports = { authenticateToken };
+/**
+ * Optional authentication middleware — same as authenticateToken but never
+ * returns 401. If a valid token is present, attaches the decoded user to
+ * req.user so downstream handlers can use it; otherwise next() is called
+ * anyway. Used by endpoints that serve BOTH public requests and authenticated
+ * admin requests (e.g. POST /api/auth/register, where an admin creating an
+ * agent account on behalf of someone else should skip reCAPTCHA).
+ */
+async function optionalAuth(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.startsWith('Bearer ')
+    ? authHeader.slice(7)
+    : null;
+
+  if (!token) {
+    return next();
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const currentVersion = await getCurrentTokenVersion(decoded.id, decoded.userType);
+    if (currentVersion !== null && currentVersion !== decoded.tokenVersion) {
+      // Token invalidated (e.g. post password change) — treat as anonymous.
+      return next();
+    }
+    req.user = decoded;
+  } catch {
+    // Invalid/expired token on optional route → proceed anonymously.
+  }
+  return next();
+}
+
+module.exports = { authenticateToken, optionalAuth };
