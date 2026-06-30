@@ -6,6 +6,16 @@ jest.mock('../config/db', () => ({
   query: jest.fn(),
 }));
 
+// Mock RefreshTokenService so login doesn't touch the real DB / JWT secret
+jest.mock('../services/refreshToken.service', () => ({
+  issue: jest.fn().mockResolvedValue('mock-refresh-jwt'),
+  rotate: jest.fn(),
+  revoke: jest.fn().mockResolvedValue(true),
+  revokeAllForUser: jest.fn().mockResolvedValue(0),
+  hashToken: jest.fn((t) => 'hash-' + t),
+  computeExpiry: jest.fn(() => new Date(Date.now() + 7 * 24 * 3600 * 1000)),
+}));
+
 const pool = require('../config/db');
 const { login } = require('./auth.controller');
 const { authorize } = require('../middleware/role.middleware');

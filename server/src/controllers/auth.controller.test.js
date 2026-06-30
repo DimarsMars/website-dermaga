@@ -11,8 +11,18 @@ jest.mock('../config/email', () => ({
   sendMail: jest.fn().mockResolvedValue({ messageId: 'test-message-id' }),
 }));
 
+// Mock RefreshTokenService so login/refresh/changePassword don't touch the DB.
+// Each test that needs it can override these defaults with mockResolvedValueOnce.
+jest.mock('../services/refreshToken.service', () => ({
+  issue: jest.fn().mockResolvedValue('mock-refresh-token'),
+  rotate: jest.fn(),
+  revoke: jest.fn().mockResolvedValue(true),
+  revokeAllForUser: jest.fn().mockResolvedValue(0),
+}));
+
 const pool = require('../config/db');
-const { register, login, resetPassword, createOfficer, createAdmin } = require('./auth.controller');
+const RefreshTokenService = require('../services/refreshToken.service');
+const { register, login, resetPassword, createOfficer, createAdmin, refreshToken, logout, changePassword } = require('./auth.controller');
 
 // Set environment variables for tests
 process.env.JWT_SECRET = 'test-jwt-secret';
@@ -314,6 +324,124 @@ describe('Auth Controller', () => {
 
       expect(res.status).toHaveBeenCalledWith(201);
       expect(res.json.mock.calls[0][0].data.user_role).toBe('admin');
+    });
+  });
+
+  describe('login (refresh token issuance)', () => {
+    it('should issue a refresh token from RefreshTokenService on successful login', async () => {
+      const hashedPassword = await bcrypt.hash('correctpass', 12);
+      const { req, res } = mockReqRes({
+        username: 'agent1',
+        password: 'correctpass',
+      });
+
+      pool.query.mockResolvedValueOnce({
+        rows: [{ id_agen: 1, username: 'agent1', password: hashedPassword }],
+      });
+
+      // Override default mock to return a plausible-looking refresh token JWT
+      RefreshTokenService.issue.mockResolvedValueOnce('fresh-refresh-jwt');
+
+      await login(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      const data = res.json.mock.calls[0][0].data;
+      expect(data.accessToken).toBeDefined();
+      expect(data.refreshToken).toBe('fresh-refresh-jwt');
+      // RefreshTokenService.issue should be called with the correct payload
+      expect(RefreshTokenService.issue).toHaveBeenCalledTimes(1);
+      const issuedPayload = RefreshTokenService.issue.mock.calls[0][0];
+      expect(issuedPayload.id).toBe(1);
+      expect(issuedPayload.role).toBe('agen');
+    });
+  });
+
+  describe('refreshToken (rotation)', () => {
+    it('should return new access + refresh tokens on successful rotation', async () => {
+      const { req, res } = mockReqRes({ refreshToken: 'old-valid-refresh-jwt' });
+
+      RefreshTokenService.rotate.mockResolvedValueOnce({
+        payload: { id: 7, username: 'agent1', role: 'agen', userType: 'agen' },
+        newAccessToken: 'new-access-jwt',
+        newRefreshToken: 'new-refresh-jwt',
+      });
+
+      await refreshToken(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      const data = res.json.mock.calls[0][0].data;
+      expect(data.accessToken).toBe('new-access-jwt');
+      expect(data.refreshToken).toBe('new-refresh-jwt');
+      expect(data.user.id).toBe(7);
+      expect(RefreshTokenService.rotate).toHaveBeenCalledWith('old-valid-refresh-jwt');
+    });
+
+    it('should return 401 AUTH_EXPIRED when rotate throws a TokenError', async () => {
+      const { req, res } = mockReqRes({ refreshToken: 'stale-jwt' });
+
+      const err = new Error('Refresh token has been revoked');
+      err.code = 'AUTH_EXPIRED';
+      RefreshTokenService.rotate.mockRejectedValueOnce(err);
+
+      await refreshToken(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(res.json.mock.calls[0][0].error.code).toBe('AUTH_EXPIRED');
+    });
+
+    it('should reject when no refresh token supplied', async () => {
+      const { req, res } = mockReqRes({});
+
+      const err = new Error('Refresh token required');
+      err.code = 'AUTH_INVALID';
+      RefreshTokenService.rotate.mockRejectedValueOnce(err);
+
+      await refreshToken(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(res.json.mock.calls[0][0].error.code).toBe('AUTH_INVALID');
+    });
+  });
+
+  describe('logout', () => {
+    it('should revoke the refresh token and return 200', async () => {
+      const { req, res } = mockReqRes({ refreshToken: 'token-to-revoke' }, { id: 1, role: 'agen' });
+
+      RefreshTokenService.revoke.mockResolvedValueOnce(true);
+
+      await logout(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(RefreshTokenService.revoke).toHaveBeenCalledWith('token-to-revoke');
+    });
+
+    it('should reject when no refresh token supplied', async () => {
+      const { req, res } = mockReqRes({}, { id: 1, role: 'agen' });
+
+      await logout(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+    });
+  });
+
+  describe('changePassword (refresh token revocation)', () => {
+    it('should revoke all refresh tokens for the user after password change', async () => {
+      const hashedPassword = await bcrypt.hash('oldpassword123', 12);
+      const { req, res } = mockReqRes(
+        { oldPassword: 'oldpassword123', newPassword: 'newpassword123' },
+        { id: 5, role: 'petugas' }
+      );
+
+      pool.query
+        .mockResolvedValueOnce({ rows: [{ password: hashedPassword }] }) // SELECT current password
+        .mockResolvedValueOnce({ rows: [] }); // UPDATE new password
+
+      RefreshTokenService.revokeAllForUser.mockResolvedValueOnce(3);
+
+      await changePassword(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(RefreshTokenService.revokeAllForUser).toHaveBeenCalledWith(5, 'petugas');
     });
   });
 });

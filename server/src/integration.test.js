@@ -392,15 +392,17 @@ describe('Integration: Authentication Flow', () => {
       expect(genericError.error.code).toBe('AUTH_INVALID');
     });
 
-    it('should authenticate valid token and attach user to request', () => {
-      const payload = { id: 5, username: 'agent1', role: 'agen', userType: 'agen' };
+    it('should authenticate valid token and attach user to request', async () => {
+      const payload = { id: 5, username: 'agent1', role: 'agen', userType: 'agen', tokenVersion: 0 };
       const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '15m' });
 
       const req = { headers: { authorization: `Bearer ${token}` } };
       const res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
       const next = jest.fn();
 
-      authenticateToken(req, res, next);
+      pool.query.mockResolvedValueOnce({ rows: [{ token_version: 0 }] });
+
+      await authenticateToken(req, res, next);
 
       expect(next).toHaveBeenCalled();
       expect(req.user).toBeDefined();
@@ -408,8 +410,8 @@ describe('Integration: Authentication Flow', () => {
       expect(req.user.role).toBe('agen');
     });
 
-    it('should reject expired token with AUTH_EXPIRED code', () => {
-      const payload = { id: 5, username: 'agent1', role: 'agen', userType: 'agen' };
+    it('should reject expired token with AUTH_EXPIRED code', async () => {
+      const payload = { id: 5, username: 'agent1', role: 'agen', userType: 'agen', tokenVersion: 0 };
       // Create a token that's already expired
       const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '-1s' });
 
@@ -417,7 +419,7 @@ describe('Integration: Authentication Flow', () => {
       const res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
       const next = jest.fn();
 
-      authenticateToken(req, res, next);
+      await authenticateToken(req, res, next);
 
       expect(next).not.toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(401);
