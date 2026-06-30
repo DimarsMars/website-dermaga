@@ -1,12 +1,15 @@
 /**
  * Database Migration Runner
- * 
- * Runs the migration.sql and seed.sql scripts against the configured PostgreSQL database.
- * 
+ *
+ * Runs migration scripts against the configured PostgreSQL database in order:
+ *   1. migration.sql  — baseline schema (creates all base tables)
+ *   2. add_*.sql       — incremental schema changes (idempotent, uses IF [NOT] EXISTS)
+ *   3. seed.sql        — initial master data (admin account)
+ *
  * Usage:
- *   node src/database/migrate.js          # Run migration + seed
- *   node src/database/migrate.js --seed   # Run seed only
- *   node src/database/migrate.js --fresh  # Drop all tables and re-run migration + seed
+ *   node src/database/migrate.js          # Run all migrations (baseline + addons) + seed
+ *   node src/database/migrate.js --seed    # Run seed only
+ *   node src/database/migrate.js --fresh   # Run all migrations (baseline drops tables first) + seed
  */
 
 require('dotenv').config();
@@ -14,21 +17,42 @@ const fs = require('fs');
 const path = require('path');
 const pool = require('../config/db');
 
-const MIGRATION_FILE = path.join(__dirname, 'migration.sql');
+const BASELINE_FILE = path.join(__dirname, 'migration.sql');
 const SEED_FILE = path.join(__dirname, 'seed.sql');
 
-async function runMigration() {
-  const sql = fs.readFileSync(MIGRATION_FILE, 'utf8');
-  console.log('Running migration...');
+// Incremental addon migrations — order matters (every file MUST be idempotent
+// using IF NOT EXISTS / IF EXISTS so it is safe to re-run).
+const ADDON_FILES = [
+  'add_ship_columns.sql',
+  'add_notif_booking_ref.sql',
+  'add_extend_columns.sql',
+  'add_completed_status.sql',
+  'add_auth_columns.sql',
+].map((name) => path.join(__dirname, name));
+
+async function runScript(filePath, label) {
+  console.log(`Running ${label}: ${path.basename(filePath)} ...`);
+  const sql = fs.readFileSync(filePath, 'utf8');
   await pool.query(sql);
-  console.log('Migration completed successfully.');
+  console.log(`  ✓ ${label} completed.`);
+}
+
+async function runBaseline() {
+  await runScript(BASELINE_FILE, 'baseline');
+}
+
+async function runAddons() {
+  for (const file of ADDON_FILES) {
+    if (!fs.existsSync(file)) {
+      console.warn(`  ! Addon migration not found, skipping: ${path.basename(file)}`);
+      continue;
+    }
+    await runScript(file, 'addon');
+  }
 }
 
 async function runSeed() {
-  const sql = fs.readFileSync(SEED_FILE, 'utf8');
-  console.log('Running seed...');
-  await pool.query(sql);
-  console.log('Seed completed successfully.');
+  await runScript(SEED_FILE, 'seed');
 }
 
 async function main() {
@@ -41,10 +65,12 @@ async function main() {
       await runSeed();
     } else if (fresh) {
       console.log('Fresh migration: dropping all tables and re-creating...');
-      await runMigration();
+      await runBaseline();
+      await runAddons();
       await runSeed();
     } else {
-      await runMigration();
+      await runBaseline();
+      await runAddons();
       await runSeed();
     }
 
