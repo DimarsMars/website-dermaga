@@ -42,12 +42,24 @@ api.interceptors.response.use(
 
     // If 401 and we haven't already retried this request
     if (error.response && error.response.status === 401 && !originalRequest._retry) {
-      // Don't try to refresh if the failing request was the refresh itself
-      if (originalRequest.url?.includes('/auth/login') || originalRequest.url?.includes('/auth/refresh')) {
+      // Auth endpoints (/login, /refresh, /register, /reset-password) returning
+      // 401 means invalid credentials — let the page handle the error message
+      // (don't reload the page, otherwise the freshly-set error toast clears).
+      // Only the /refresh endpoint failing should trigger a logout+redirect.
+      const url = originalRequest.url || '';
+      if (url.includes('/auth/refresh')) {
         localStorage.removeItem('token');
         localStorage.removeItem('refreshToken');
         localStorage.removeItem('user');
         window.location.href = '/login';
+        return Promise.reject(error);
+      }
+      if (
+        url.includes('/auth/login') ||
+        url.includes('/auth/register') ||
+        url.includes('/auth/reset-password')
+      ) {
+        // Surface the error to the caller — the page will show a toast.
         return Promise.reject(error);
       }
 

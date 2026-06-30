@@ -43,6 +43,26 @@ async function runBaseline() {
   await runScript(BASELINE_FILE, 'baseline');
 }
 
+/**
+ * Detect whether the baseline tables already exist. We use `master_agen` as
+ * the marker table because it is the first table created by migration.sql.
+ * Running migration.sql against an existing DB would DROP every table (data
+ * loss) — so we skip the baseline on subsequent runs and rely on the
+ * idempotent add_*.sql scripts to evolve the schema.
+ */
+async function baselineAlreadyApplied() {
+  try {
+    const result = await pool.query(
+      `SELECT to_regclass('public.master_agen') AS exists`
+    );
+    return Boolean(result.rows[0] && result.rows[0].exists);
+  } catch {
+    // If the schema isn't even reachable, fall through to baseline run so the
+    // caller gets a real error message instead of a silent skip.
+    return false;
+  }
+}
+
 async function runAddons() {
   for (const file of ADDON_FILES) {
     if (!fs.existsSync(file)) {
@@ -71,7 +91,16 @@ async function main() {
       await runAddons();
       await runSeed();
     } else {
-      await runBaseline();
+      // Safe migration: only run the baseline (which DROPs tables) on a brand
+      // new database. On existing databases we skip it to preserve data and
+      // only apply the idempotent add_*.sql migrations.
+      const alreadyApplied = await baselineAlreadyApplied();
+      if (alreadyApplied) {
+        console.log('Baseline schema already present — skipping baseline (preserves data).');
+      } else {
+        console.log('Baseline schema not found — running baseline migration...');
+        await runBaseline();
+      }
       await runAddons();
       await runSeed();
     }
