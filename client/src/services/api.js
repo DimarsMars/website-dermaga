@@ -79,8 +79,12 @@ api.interceptors.response.use(
           { refreshToken }
         );
 
-        const { accessToken } = response.data.data;
+        const { accessToken, refreshToken: newRefreshToken } = response.data.data;
         localStorage.setItem('token', accessToken);
+        // Save the new refresh token issued by the rotation chain — single-use
+        if (newRefreshToken) {
+          localStorage.setItem('refreshToken', newRefreshToken);
+        }
 
         processQueue(null, accessToken);
 

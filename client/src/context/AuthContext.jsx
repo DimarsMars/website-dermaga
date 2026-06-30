@@ -41,7 +41,18 @@ export function AuthProvider({ children }) {
     return userData;
   }, []);
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    const refreshToken = localStorage.getItem('refreshToken');
+    // Best-effort: revoke the refresh token server-side so it can no longer be used.
+    // If the network call fails we still clear local state (defensive) — the token
+    // will eventually expire anyway.
+    if (refreshToken) {
+      try {
+        await api.post('/auth/logout', { refreshToken });
+      } catch {
+        // Ignore — token may already be invalid/expired; clear local state anyway.
+      }
+    }
     localStorage.removeItem('token');
     localStorage.removeItem('refreshToken');
     localStorage.removeItem('user');
