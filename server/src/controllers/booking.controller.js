@@ -83,7 +83,7 @@ const bookingController = {
         etd_out,
         pbm,
         keterangan,
-        status_request: 'pending',
+        status_request: 'approved',
       });
 
       if (!result.success) {
@@ -99,6 +99,16 @@ const bookingController = {
       if (io) {
         broadcastBerthingUpdate(io, 'created', result.booking);
       }
+
+      // Notify the agent that their booking has been approved (manual entry)
+      NotificationService.notifyStatusChange(io, result.booking, 'approved').catch(err => {
+        console.error('Error sending manual booking approval notification:', err);
+      });
+
+      // Log activity
+      ActivityService.logActivity(req.user.id, req.user.role, ACTIVITY_TYPES.BOOKING_APPROVED,
+        `Booking manual dibuat & disetujui untuk kapal ${result.booking.nama_kapal || '-'} (agen #${id_agen}) oleh ${req.user.username}`
+      ).catch(err => console.error('Error logging activity:', err));
 
       return res.status(201).json({
         success: true,
@@ -272,6 +282,22 @@ const bookingController = {
     try {
       const { id } = req.params;
       const { new_etd_out } = req.body;
+
+      // Ownership check: agents may only extend their own bookings
+      const booking = await BookingService.getBookingById(parseInt(id, 10));
+      if (!booking) {
+        return res.status(404).json({
+          success: false,
+          error: { code: 'NOT_FOUND', message: 'Booking not found' },
+        });
+      }
+      if (req.user.role === 'agen' && booking.id_agen !== req.user.id) {
+        return res.status(403).json({
+          success: false,
+          error: { code: 'FORBIDDEN', message: 'You can only extend your own booking' },
+        });
+      }
+
       const result = await BookingService.extendBooking(parseInt(id, 10), new_etd_out);
 
       if (!result.success) {
