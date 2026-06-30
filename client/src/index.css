@@ -1,0 +1,29 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply px-6 py-2.5 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-all duration-200 shadow-sm hover:shadow-md;
+  }
+  .btn-secondary {
+    @apply px-6 py-2.5 bg-navy text-white font-medium rounded-lg hover:bg-navy-light transition-all duration-200 shadow-sm hover:shadow-md;
+  }
+  .input-field {
+    @apply w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-navy/30 focus:border-navy outline-none transition-all duration-200 bg-white;
+  }
+  .card {
+    @apply bg-white rounded-xl shadow-md p-6;
+  }
+  .table-header {
+    @apply bg-[#1e3a5f] text-white text-sm font-medium;
+  }
+}

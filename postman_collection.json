@@ -1,0 +1,216 @@
+{
+  "info": {
+    "name": "Dock Pre-Booking API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:5000" },
+    { "key": "token", "value": "" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{token}}" }]
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/auth/login",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"admin123\"\n}" }
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["var json = pm.response.json();", "if(json.data && json.data.accessToken) {", "  pm.collectionVariables.set('token', json.data.accessToken);", "}"] } }]
+        },
+        {
+          "name": "Register Agent",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/auth/register",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"username\": \"agen_test\",\n  \"password\": \"password123\",\n  \"agency_name\": \"PT Test Agency\",\n  \"npwp\": \"12345\",\n  \"phone_number\": \"08123456789\",\n  \"email\": \"test@agency.com\"\n}" }
+          }
+        },
+        {
+          "name": "Create Officer",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/auth/create-officer",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"employee_id\": \"PTG001\",\n  \"username\": \"petugas1\",\n  \"password\": \"password123\",\n  \"name\": \"Petugas Satu\",\n  \"phone_number\": \"08111111111\"\n}" }
+          }
+        },
+        {
+          "name": "Reset Password",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/auth/reset-password",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"test@agency.com\"\n}" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Ships",
+      "item": [
+        {
+          "name": "List Ships",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/ships" }
+        },
+        {
+          "name": "Create Ship",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/ships",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"nama_kapal\": \"MV Binaiya\",\n  \"loa\": 100,\n  \"gt\": 5000,\n  \"id_agen\": 1,\n  \"type\": \"Container\",\n  \"call_sign\": \"YBCD\",\n  \"keterangan\": \"Kapal kontainer\"\n}" }
+          }
+        },
+        {
+          "name": "Update Ship",
+          "request": {
+            "method": "PUT",
+            "url": "{{baseUrl}}/api/ships/1",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"nama_kapal\": \"MV Binaiya Updated\",\n  \"loa\": 105,\n  \"gt\": 5200,\n  \"id_agen\": 1,\n  \"type\": \"Bulk Carrier\",\n  \"call_sign\": \"YBCE\",\n  \"keterangan\": \"Updated\"\n}" }
+          }
+        },
+        {
+          "name": "Delete Ship",
+          "request": { "method": "DELETE", "url": "{{baseUrl}}/api/ships/1" }
+        }
+      ]
+    },
+    {
+      "name": "Agents",
+      "item": [
+        {
+          "name": "List Agents",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/agents" }
+        },
+        {
+          "name": "Update Agent",
+          "request": {
+            "method": "PUT",
+            "url": "{{baseUrl}}/api/agents/1",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"username\": \"agen_updated\",\n  \"agency_name\": \"PT Updated Agency\",\n  \"npwp\": \"99999\",\n  \"company_address\": \"Jl. Baru\",\n  \"phone_number\": \"08999999999\",\n  \"email\": \"updated@agency.com\"\n}" }
+          }
+        },
+        {
+          "name": "Delete Agent",
+          "request": { "method": "DELETE", "url": "{{baseUrl}}/api/agents/1" }
+        }
+      ]
+    },
+    {
+      "name": "Officers",
+      "item": [
+        {
+          "name": "List Officers",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/officers" }
+        },
+        {
+          "name": "Update Officer",
+          "request": {
+            "method": "PUT",
+            "url": "{{baseUrl}}/api/officers/1",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"employee_id\": \"ADM001\",\n  \"username\": \"admin\",\n  \"name\": \"Admin Updated\",\n  \"phone_number\": \"08120000000\",\n  \"user_role\": \"admin\"\n}" }
+          }
+        },
+        {
+          "name": "Delete Officer",
+          "request": { "method": "DELETE", "url": "{{baseUrl}}/api/officers/2" }
+        }
+      ]
+    },
+    {
+      "name": "Bookings",
+      "item": [
+        {
+          "name": "List Bookings",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/bookings" }
+        },
+        {
+          "name": "Get Booking by ID",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/bookings/1" }
+        },
+        {
+          "name": "Submit Booking (Agent)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/bookings",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"id_kapal\": 1,\n  \"pos_start\": 100,\n  \"eta_in\": \"2026-06-01T08:00:00.000Z\",\n  \"etd_out\": \"2026-06-03T08:00:00.000Z\",\n  \"pbm\": \"PT PBM Test\",\n  \"keterangan\": \"Test booking\"\n}" }
+          }
+        },
+        {
+          "name": "Manual Booking (Officer/Admin)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/bookings/manual",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"id_kapal\": 1,\n  \"id_agen\": 1,\n  \"pos_start\": 200,\n  \"eta_in\": \"2026-06-05T08:00:00.000Z\",\n  \"etd_out\": \"2026-06-07T08:00:00.000Z\",\n  \"pbm\": \"PT PBM Manual\",\n  \"keterangan\": \"Manual entry\"\n}" }
+          }
+        },
+        {
+          "name": "Approve Booking",
+          "request": { "method": "PUT", "url": "{{baseUrl}}/api/bookings/1/approve" }
+        },
+        {
+          "name": "Reject Booking",
+          "request": { "method": "PUT", "url": "{{baseUrl}}/api/bookings/1/reject" }
+        },
+        {
+          "name": "Edit Position",
+          "request": {
+            "method": "PUT",
+            "url": "{{baseUrl}}/api/bookings/1/position",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"pos_start\": 150\n}" }
+          }
+        },
+        {
+          "name": "Extend Time",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/bookings/1/extend",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"new_etd_out\": \"2026-06-04T08:00:00.000Z\"\n}" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Notifications",
+      "item": [
+        {
+          "name": "List Notifications",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/notifications" }
+        },
+        {
+          "name": "Mark as Read",
+          "request": { "method": "PUT", "url": "{{baseUrl}}/api/notifications/1/read" }
+        }
+      ]
+    },
+    {
+      "name": "Activity Log",
+      "item": [
+        {
+          "name": "Get Activity Logs",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/activity" }
+        },
+        {
+          "name": "Export PDF",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/activity/export/pdf" }
+        }
+      ]
+    }
+  ]
+}

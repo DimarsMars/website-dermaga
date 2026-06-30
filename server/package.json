@@ -1,0 +1,33 @@
+{
+  "name": "dock-prebooking-server",
+  "version": "1.0.0",
+  "description": "Express.js REST API + Socket.io WebSocket server for Dock Pre-Booking Monitoring",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "nodemon src/index.js",
+    "start": "node src/index.js",
+    "db:migrate": "node src/database/migrate.js",
+    "db:seed": "node src/database/migrate.js --seed",
+    "db:fresh": "node src/database/migrate.js --fresh",
+    "test": "jest --runInBand"
+  },
+  "dependencies": {
+    "bcrypt": "^5.1.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0",
+    "express-rate-limit": "^7.4.1",
+    "helmet": "^7.1.0",
+    "joi": "^17.13.3",
+    "jsonwebtoken": "^9.0.2",
+    "nodemailer": "^8.0.10",
+    "pdfkit": "^0.15.0",
+    "pg": "^8.13.0",
+    "socket.io": "^4.8.0"
+  },
+  "devDependencies": {
+    "fast-check": "^4.8.0",
+    "jest": "^29.7.0",
+    "nodemon": "^3.1.7"
+  }
+}

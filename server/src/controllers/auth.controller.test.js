@@ -1,0 +1,280 @@
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+
+// Mock the database pool
+jest.mock('../config/db', () => ({
+  query: jest.fn(),
+}));
+
+const pool = require('../config/db');
+const { register, login, resetPassword, createOfficer, createAdmin } = require('./auth.controller');
+
+// Set environment variables for tests
+process.env.JWT_SECRET = 'test-jwt-secret';
+process.env.JWT_REFRESH_SECRET = 'test-jwt-refresh-secret';
+process.env.JWT_EXPIRES_IN = '15m';
+process.env.JWT_REFRESH_EXPIRES_IN = '7d';
+
+// Helper to create mock req/res
+function mockReqRes(body = {}, user = null) {
+  const req = { body, user };
+  const res = {
+    status: jest.fn().mockReturnThis(),
+    json: jest.fn().mockReturnThis(),
+  };
+  return { req, res };
+}
+
+describe('Auth Controller', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  describe('register', () => {
+    it('should register a new agent successfully', async () => {
+      const { req, res } = mockReqRes({
+        username: 'newagent',
+        password: 'securepass123',
+        agency_name: 'Test Agency',
+        email: 'test@agency.com',
+      });
+
+      pool.query
+        .mockResolvedValueOnce({ rows: [] }) // username check
+        .mockResolvedValueOnce({
+          rows: [{ id_agen: 1, username: 'newagent', agency_name: 'Test Agency', email: 'test@agency.com', created_at: new Date().toISOString() }],
+        }); // insert
+
+      await register(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ success: true })
+      );
+    });
+
+    it('should reject registration with existing username', async () => {
+      const { req, res } = mockReqRes({
+        username: 'existinguser',
+        password: 'pass123',
+        agency_name: 'Agency',
+      });
+
+      pool.query.mockResolvedValueOnce({ rows: [{ id_agen: 1 }] }); // username exists
+
+      await register(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(409);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: false,
+          error: expect.objectContaining({ code: 'VALIDATION_FIELDS' }),
+        })
+      );
+    });
+  });
+
+  describe('login', () => {
+    it('should login an agent with valid credentials', async () => {
+      const hashedPassword = await bcrypt.hash('correctpass', 12);
+      const { req, res } = mockReqRes({
+        username: 'agent1',
+        password: 'correctpass',
+      });
+
+      pool.query.mockResolvedValueOnce({
+        rows: [{ id_agen: 1, username: 'agent1', password: hashedPassword }],
+      });
+
+      await login(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      const responseData = res.json.mock.calls[0][0];
+      expect(responseData.success).toBe(true);
+      expect(responseData.data.accessToken).toBeDefined();
+      expect(responseData.data.refreshToken).toBeDefined();
+      expect(responseData.data.user.role).toBe('agen');
+      expect(responseData.data.user.userType).toBe('agen');
+    });
+
+    it('should login a petugas with valid credentials', async () => {
+      const hashedPassword = await bcrypt.hash('officerpass', 12);
+      const { req, res } = mockReqRes({
+        username: 'officer1',
+        password: 'officerpass',
+      });
+
+      pool.query
+        .mockResolvedValueOnce({ rows: [] }) // not in master_agen
+        .mockResolvedValueOnce({
+          rows: [{ id_petugas: 5, username: 'officer1', password: hashedPassword, user_role: 'petugas' }],
+        });
+
+      await login(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      const responseData = res.json.mock.calls[0][0];
+      expect(responseData.data.user.role).toBe('petugas');
+      expect(responseData.data.user.userType).toBe('petugas');
+    });
+
+    it('should return generic error for non-existent username', async () => {
+      const { req, res } = mockReqRes({
+        username: 'nonexistent',
+        password: 'anypass',
+      });
+
+      pool.query
+        .mockResolvedValueOnce({ rows: [] }) // not in master_agen
+        .mockResolvedValueOnce({ rows: [] }); // not in master_petugas
+
+      await login(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        error: { code: 'AUTH_INVALID', message: 'Invalid credentials' },
+      });
+    });
+
+    it('should return generic error for wrong password', async () => {
+      const hashedPassword = await bcrypt.hash('correctpass', 12);
+      const { req, res } = mockReqRes({
+        username: 'agent1',
+        password: 'wrongpass',
+      });
+
+      pool.query.mockResolvedValueOnce({
+        rows: [{ id_agen: 1, username: 'agent1', password: hashedPassword }],
+      });
+
+      await login(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        error: { code: 'AUTH_INVALID', message: 'Invalid credentials' },
+      });
+    });
+
+    it('should return same error message for wrong username and wrong password', async () => {
+      const hashedPassword = await bcrypt.hash('correctpass', 12);
+
+      // Wrong username
+      const { req: req1, res: res1 } = mockReqRes({ username: 'wrong', password: 'any' });
+      pool.query
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [] });
+      await login(req1, res1);
+
+      // Wrong password
+      const { req: req2, res: res2 } = mockReqRes({ username: 'agent1', password: 'wrong' });
+      pool.query.mockResolvedValueOnce({
+        rows: [{ id_agen: 1, username: 'agent1', password: hashedPassword }],
+      });
+      await login(req2, res2);
+
+      // Both should have same error message
+      const error1 = res1.json.mock.calls[0][0].error;
+      const error2 = res2.json.mock.calls[0][0].error;
+      expect(error1.message).toBe(error2.message);
+      expect(error1.code).toBe(error2.code);
+    });
+
+    it('should include correct JWT payload fields', async () => {
+      const hashedPassword = await bcrypt.hash('pass123', 12);
+      const { req, res } = mockReqRes({ username: 'agent1', password: 'pass123' });
+
+      pool.query.mockResolvedValueOnce({
+        rows: [{ id_agen: 7, username: 'agent1', password: hashedPassword }],
+      });
+
+      await login(req, res);
+
+      const { accessToken } = res.json.mock.calls[0][0].data;
+      const decoded = jwt.verify(accessToken, process.env.JWT_SECRET);
+      expect(decoded.id).toBe(7);
+      expect(decoded.username).toBe('agent1');
+      expect(decoded.role).toBe('agen');
+      expect(decoded.userType).toBe('agen');
+    });
+  });
+
+  describe('resetPassword', () => {
+    it('should return success regardless of whether email exists', async () => {
+      // Email exists
+      const { req: req1, res: res1 } = mockReqRes({ email: 'exists@test.com' });
+      pool.query.mockResolvedValueOnce({ rows: [{ id_agen: 1, email: 'exists@test.com' }] });
+      await resetPassword(req1, res1);
+      expect(res1.status).toHaveBeenCalledWith(200);
+      expect(res1.json.mock.calls[0][0].success).toBe(true);
+
+      // Email does not exist
+      const { req: req2, res: res2 } = mockReqRes({ email: 'noexist@test.com' });
+      pool.query.mockResolvedValueOnce({ rows: [] });
+      await resetPassword(req2, res2);
+      expect(res2.status).toHaveBeenCalledWith(200);
+      expect(res2.json.mock.calls[0][0].success).toBe(true);
+    });
+  });
+
+  describe('createOfficer', () => {
+    it('should create a new officer with petugas role', async () => {
+      const { req, res } = mockReqRes({
+        employee_id: 'EMP001',
+        username: 'officer1',
+        password: 'officerpass',
+        name: 'Officer One',
+        phone_number: '08123456789',
+      });
+
+      pool.query
+        .mockResolvedValueOnce({ rows: [] }) // no existing
+        .mockResolvedValueOnce({
+          rows: [{ id_petugas: 1, employee_id: 'EMP001', username: 'officer1', name: 'Officer One', phone_number: '08123456789', user_role: 'petugas', created_at: new Date().toISOString() }],
+        });
+
+      await createOfficer(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(res.json.mock.calls[0][0].data.user_role).toBe('petugas');
+    });
+
+    it('should reject if username or employee_id already exists', async () => {
+      const { req, res } = mockReqRes({
+        employee_id: 'EMP001',
+        username: 'existing',
+        password: 'pass',
+        name: 'Test',
+      });
+
+      pool.query.mockResolvedValueOnce({ rows: [{ id_petugas: 1 }] });
+
+      await createOfficer(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(409);
+    });
+  });
+
+  describe('createAdmin', () => {
+    it('should create a new admin account', async () => {
+      const { req, res } = mockReqRes({
+        employee_id: 'ADM001',
+        username: 'admin2',
+        password: 'adminpass',
+        name: 'Admin Two',
+      });
+
+      pool.query
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({
+          rows: [{ id_petugas: 2, employee_id: 'ADM001', username: 'admin2', name: 'Admin Two', phone_number: null, user_role: 'admin', created_at: new Date().toISOString() }],
+        });
+
+      await createAdmin(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(res.json.mock.calls[0][0].data.user_role).toBe('admin');
+    });
+  });
+});
