@@ -12,6 +12,7 @@ export default function RegisterPage() {
     npwp: '',
     address: '',
     phone: '',
+    email: '',
   });
   const [recaptchaToken, setRecaptchaToken] = useState(null);
   const [error, setError] = useState('');
@@ -27,8 +28,13 @@ export default function RegisterPage() {
     e.preventDefault();
     setError('');
 
-    if (!form.username || !form.password || !form.agencyName) {
-      setError('Username, password, dan nama perusahaan harus diisi');
+    if (!form.username || !form.password || !form.agencyName || !form.email) {
+      setError('Username, password, email, dan nama perusahaan harus diisi');
+      return;
+    }
+
+    if (!/^\S+@\S+\.\S+$/.test(form.email)) {
+      setError('Format email tidak valid');
       return;
     }
 
@@ -47,9 +53,9 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen flex bg-gradient-to-br from-[#1e3a5f] via-[#2a4a73] to-[#1a2d47] overflow-hidden">
+    <div className="min-h-screen flex bg-gradient-to-br from-[#1e3a5f] via-[#2a4a73] to-[#1a2d47]">
       
-      {/* Left Side - Dashboard Brand Panel (Sticky & Locked) */}
+      {/* Left Side - Dashboard Brand Panel (Sticky) */}
       <div className="hidden lg:flex lg:w-1/2 bg-transparent items-center justify-center relative overflow-hidden lg:sticky lg:top-0 lg:h-screen">
         {/* INJEKSI ANIMASI KUSTOM */}
         <style>{`
@@ -104,9 +110,9 @@ export default function RegisterPage() {
         </div>
       </div>
 
-      {/* Right Side - Compact Register Form (SUPER COMPACT & NO SCROLL) */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center px-6 py-4 sm:py-6 bg-white lg:rounded-l-[40px] shadow-2xl relative z-10 min-h-screen overflow-hidden">
-        <div className="w-full max-w-md flex flex-col justify-center h-full py-2">
+      {/* Right Side - Compact Register Form (Scrollable on long content) */}
+      <div className="w-full lg:w-1/2 flex items-start lg:items-center justify-center px-6 py-4 sm:py-8 bg-white lg:rounded-l-[40px] shadow-2xl relative z-10 lg:h-screen overflow-y-auto">
+        <div className="w-full max-w-md flex flex-col justify-center py-2 my-auto">
           
           {/* Header Section - Keperketat Margin */}
           <div className="text-center mb-6">
@@ -215,6 +221,20 @@ export default function RegisterPage() {
                 onChange={handleChange}
                 className="input-field !py-1.5 text-sm h-9"
                 placeholder="Nomor telepon"
+              />
+            </div>
+
+            {/* Email */}
+            <div>
+              <label className="block text-sm font-medium text-gray-600 mb-1">Email</label>
+              <input
+                type="email"
+                name="email"
+                value={form.email}
+                onChange={handleChange}
+                className="input-field !py-1.5 text-sm h-9"
+                placeholder="Email perusahaan (wajib untuk reset password)"
+                required
               />
             </div>
 

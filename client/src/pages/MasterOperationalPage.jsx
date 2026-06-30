@@ -62,7 +62,8 @@ export default function MasterOperationalPage() {
 
     if (!formData.name.trim()) errs.name = 'Nama wajib diisi.';
 
-    if (formData.email && !/^\S+@\S+\.\S+$/.test(formData.email)) {
+    if (!formData.email.trim()) errs.email = 'Email wajib diisi.';
+    else if (!/^\S+@\S+\.\S+$/.test(formData.email)) {
       errs.email = 'Format email tidak valid.';
     }
     if (formData.phone_number && !/^[0-9+\-\s()]{6,}$/.test(formData.phone_number)) {
