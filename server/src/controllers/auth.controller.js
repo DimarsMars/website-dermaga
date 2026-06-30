@@ -2,6 +2,7 @@ const path = require('path');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const pool = require('../config/db');
+const RefreshTokenService = require('../services/refreshToken.service');
 
 const SALT_ROUNDS = 12;
 
@@ -20,16 +21,14 @@ function isDuplicateEmailError(err) {
 }
 
 /**
- * Generate access token (15 min) and refresh token (7 days).
+ * Generate access token (short-lived) only. Refresh tokens are issued
+ * through RefreshTokenService which also persists their hash server-side
+ * for rotation / revocation.
  */
-function generateTokens(payload) {
-  const accessToken = jwt.sign(payload, process.env.JWT_SECRET, {
+function generateAccessToken(payload) {
+  return jwt.sign(payload, process.env.JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRES_IN || '2h',
   });
-  const refreshToken = jwt.sign(payload, process.env.JWT_REFRESH_SECRET, {
-    expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
-  });
-  return { accessToken, refreshToken };
 }
 
 const isProduction = process.env.NODE_ENV === 'production';
@@ -192,7 +191,7 @@ async function login(req, res) {
     let userId = null;
 
     const agenResult = await pool.query(
-      'SELECT id_agen, username, password FROM master_agen WHERE username = $1',
+      'SELECT id_agen, username, password, token_version FROM master_agen WHERE username = $1',
       [username]
     );
 
@@ -204,7 +203,7 @@ async function login(req, res) {
     } else {
       // Try master_petugas
       const petugasResult = await pool.query(
-        'SELECT id_petugas, username, password, user_role FROM master_petugas WHERE username = $1',
+        'SELECT id_petugas, username, password, user_role, token_version FROM master_petugas WHERE username = $1',
         [username]
       );
 
@@ -233,14 +232,17 @@ async function login(req, res) {
       });
     }
 
-    // Generate JWT tokens
+    // Generate JWT tokens — include token_version so the auth middleware can
+    // reject access tokens issued before a password change.
     const tokenPayload = {
       id: userId,
       username: user.username,
       role,
       userType,
+      tokenVersion: user.token_version || 0,
     };
-    const { accessToken, refreshToken } = generateTokens(tokenPayload);
+    const accessToken = generateAccessToken(tokenPayload);
+    const refreshToken = await RefreshTokenService.issue(tokenPayload);
 
     return res.status(200).json({
       success: true,
@@ -517,15 +519,25 @@ async function changePassword(req, res) {
     // 3. Hash password baru yang diajukan
     const hashedPassword = await bcrypt.hash(newPassword, 12);
 
-    // 4. Update password baru ke dalam database
+    // 4. Update password baru ke dalam database & invalidate all access tokens
+    //    by incrementing token_version (any outstanding access token with the
+    //    old version will be rejected by the auth middleware).
     await pool.query(
-      `UPDATE ${targetTable} SET password = $1 WHERE ${idColumn} = $2`,
+      `UPDATE ${targetTable} SET password = $1, token_version = token_version + 1 WHERE ${idColumn} = $2`,
       [hashedPassword, userId]
     );
 
+    // 5. Revoke every active refresh token for this user so other sessions
+    //    are forced to re-authenticate with the new password.
+    try {
+      await RefreshTokenService.revokeAllForUser(userId, userRole);
+    } catch (revokeErr) {
+      console.error('Failed to revoke refresh tokens after password change:', revokeErr.message);
+    }
+
     return res.status(200).json({
       success: true,
-      data: { message: 'Password berhasil diperbarui' },
+      data: { message: 'Password berhasil diperbarui. Silakan login kembali di semua perangkat.' },
     });
   } catch (err) {
     console.error('Change password error:', err.message);
@@ -742,49 +754,76 @@ async function getProfile(req, res) {
 
 /**
  * POST /api/auth/refresh
- * Refresh access token using a valid refresh token.
+ * Rotate refresh token: validate the old token, revoke it, issue a new pair.
+ * Refresh tokens are single-use (rotation). A stolen+used refresh token
+ * immediately invalidates the legitimate user's chain.
  */
 async function refreshToken(req, res) {
   try {
     const { refreshToken } = req.body;
 
-    if (!refreshToken) {
+    const { payload, newAccessToken, newRefreshToken } = await RefreshTokenService.rotate(refreshToken);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        accessToken: newAccessToken,
+        refreshToken: newRefreshToken,
+        user: {
+          id: payload.id,
+          username: payload.username,
+          role: payload.role,
+          userType: payload.userType,
+        },
+      },
+    });
+  } catch (err) {
+    // TokenError from RefreshTokenService carries a clean code
+    if (err && err.code === 'AUTH_INVALID') {
       return res.status(401).json({
+        success: false,
+        error: { code: 'AUTH_INVALID', message: err.message },
+      });
+    }
+    if (err && err.code === 'AUTH_EXPIRED') {
+      return res.status(401).json({
+        success: false,
+        error: { code: 'AUTH_EXPIRED', message: err.message },
+      });
+    }
+    console.error('Error refreshing token:', err);
+    return res.status(500).json({
+      success: false,
+      error: { code: 'INTERNAL', message: 'Internal server error' },
+    });
+  }
+}
+
+/**
+ * POST /api/auth/logout
+ * Revoke the supplied refresh token (single-device logout).
+ * Requires a valid access token (authenticateToken) so that only the
+ * owner of the session can revoke its refresh token.
+ */
+async function logout(req, res) {
+  try {
+    const { refreshToken } = req.body;
+
+    if (!refreshToken) {
+      return res.status(400).json({
         success: false,
         error: { code: 'AUTH_INVALID', message: 'Refresh token required' },
       });
     }
 
-    // Verify the refresh token
-    let decoded;
-    try {
-      decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
-    } catch (err) {
-      return res.status(401).json({
-        success: false,
-        error: { code: 'AUTH_EXPIRED', message: 'Refresh token expired or invalid' },
-      });
-    }
-
-    // Generate new tokens
-    const payload = {
-      id: decoded.id,
-      username: decoded.username,
-      role: decoded.role,
-      userType: decoded.userType,
-    };
-
-    const tokens = generateTokens(payload);
+    await RefreshTokenService.revoke(refreshToken);
 
     return res.status(200).json({
       success: true,
-      data: {
-        accessToken: tokens.accessToken,
-        refreshToken: tokens.refreshToken,
-      },
+      data: { message: 'Logged out' },
     });
   } catch (err) {
-    console.error('Error refreshing token:', err);
+    console.error('Logout error:', err.message);
     return res.status(500).json({
       success: false,
       error: { code: 'INTERNAL', message: 'Internal server error' },
@@ -801,7 +840,8 @@ module.exports = {
   createOfficer,
   createAdmin,
   refreshToken,
+  logout,
   getProfile,
-  generateTokens,
+  generateAccessToken,
   verifyRecaptcha,
 };

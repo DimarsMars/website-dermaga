@@ -149,6 +149,12 @@ router.post('/reset-password', validate(resetPasswordRequestSchema), authControl
 router.post('/change-password', authenticateToken, validate(changePasswordSchema), authController.changePassword);
 
 /**
+ * POST /api/auth/logout
+ * Revoke the supplied refresh token (single-device logout).
+ */
+router.post('/logout', authenticateToken, authController.logout);
+
+/**
  * POST /api/auth/create-officer
  * Admin creates a Petugas_Operasional account - Admin only.
  */
