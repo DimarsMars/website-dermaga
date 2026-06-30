@@ -28,6 +28,8 @@ const ADDON_FILES = [
   'add_extend_columns.sql',
   'add_completed_status.sql',
   'add_auth_columns.sql',
+  'add_refresh_tokens.sql',
+  'add_token_version.sql',
 ].map((name) => path.join(__dirname, name));
 
 async function runScript(filePath, label) {
