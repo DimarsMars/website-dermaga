@@ -6,6 +6,11 @@ jest.mock('../config/db', () => ({
   query: jest.fn(),
 }));
 
+// Mock the email transporter so resetPassword tests don't try to really send mail
+jest.mock('../config/email', () => ({
+  sendMail: jest.fn().mockResolvedValue({ messageId: 'test-message-id' }),
+}));
+
 const pool = require('../config/db');
 const { register, login, resetPassword, createOfficer, createAdmin } = require('./auth.controller');
 
@@ -41,6 +46,7 @@ describe('Auth Controller', () => {
 
       pool.query
         .mockResolvedValueOnce({ rows: [] }) // username check
+        .mockResolvedValueOnce({ rows: [] }) // email check
         .mockResolvedValueOnce({
           rows: [{ id_agen: 1, username: 'newagent', agency_name: 'Test Agency', email: 'test@agency.com', created_at: new Date().toISOString() }],
         }); // insert
@@ -56,8 +62,9 @@ describe('Auth Controller', () => {
     it('should reject registration with existing username', async () => {
       const { req, res } = mockReqRes({
         username: 'existinguser',
-        password: 'pass123',
+        password: 'password123',
         agency_name: 'Agency',
+        email: 'a@example.com',
       });
 
       pool.query.mockResolvedValueOnce({ rows: [{ id_agen: 1 }] }); // username exists
@@ -69,6 +76,29 @@ describe('Auth Controller', () => {
         expect.objectContaining({
           success: false,
           error: expect.objectContaining({ code: 'VALIDATION_FIELDS' }),
+        })
+      );
+    });
+
+    it('should reject registration with existing email', async () => {
+      const { req, res } = mockReqRes({
+        username: 'anotheruser',
+        password: 'password123',
+        agency_name: 'Agency',
+        email: 'taken@agency.com',
+      });
+
+      pool.query
+        .mockResolvedValueOnce({ rows: [] }) // username check passes
+        .mockResolvedValueOnce({ rows: [{ id_agen: 5 }] }); // email already exists
+
+      await register(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(409);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: false,
+          error: expect.objectContaining({ message: 'Email already registered' }),
         })
       );
     });
@@ -202,16 +232,20 @@ describe('Auth Controller', () => {
 
   describe('resetPassword', () => {
     it('should return success regardless of whether email exists', async () => {
-      // Email exists
+      // Email exists in master_agen
       const { req: req1, res: res1 } = mockReqRes({ email: 'exists@test.com' });
-      pool.query.mockResolvedValueOnce({ rows: [{ id_agen: 1, email: 'exists@test.com' }] });
+      pool.query
+        .mockResolvedValueOnce({ rows: [{ id_agen: 1, email: 'exists@test.com' }] }) // agen check
+        .mockResolvedValueOnce({ rows: [] }); // UPDATE reset_token
       await resetPassword(req1, res1);
       expect(res1.status).toHaveBeenCalledWith(200);
       expect(res1.json.mock.calls[0][0].success).toBe(true);
 
-      // Email does not exist
+      // Email does not exist in either table
       const { req: req2, res: res2 } = mockReqRes({ email: 'noexist@test.com' });
-      pool.query.mockResolvedValueOnce({ rows: [] });
+      pool.query
+        .mockResolvedValueOnce({ rows: [] }) // agen check (not found)
+        .mockResolvedValueOnce({ rows: [] }); // petugas check (not found)
       await resetPassword(req2, res2);
       expect(res2.status).toHaveBeenCalledWith(200);
       expect(res2.json.mock.calls[0][0].success).toBe(true);
@@ -225,14 +259,16 @@ describe('Auth Controller', () => {
         username: 'officer1',
         password: 'officerpass',
         name: 'Officer One',
+        email: 'officer@example.com',
         phone_number: '08123456789',
       });
 
       pool.query
-        .mockResolvedValueOnce({ rows: [] }) // no existing
+        .mockResolvedValueOnce({ rows: [] }) // username/employee_id check
+        .mockResolvedValueOnce({ rows: [] }) // email check
         .mockResolvedValueOnce({
-          rows: [{ id_petugas: 1, employee_id: 'EMP001', username: 'officer1', name: 'Officer One', phone_number: '08123456789', user_role: 'petugas', created_at: new Date().toISOString() }],
-        });
+          rows: [{ id_petugas: 1, employee_id: 'EMP001', username: 'officer1', name: 'Officer One', phone_number: '08123456789', email: 'officer@example.com', user_role: 'petugas', created_at: new Date().toISOString() }],
+        }); // insert
 
       await createOfficer(req, res);
 
@@ -244,8 +280,9 @@ describe('Auth Controller', () => {
       const { req, res } = mockReqRes({
         employee_id: 'EMP001',
         username: 'existing',
-        password: 'pass',
+        password: 'password123',
         name: 'Test',
+        email: 'test@example.com',
       });
 
       pool.query.mockResolvedValueOnce({ rows: [{ id_petugas: 1 }] });
@@ -263,13 +300,15 @@ describe('Auth Controller', () => {
         username: 'admin2',
         password: 'adminpass',
         name: 'Admin Two',
+        email: 'admin2@example.com',
       });
 
       pool.query
-        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [] }) // username/employee_id check
+        .mockResolvedValueOnce({ rows: [] }) // email check
         .mockResolvedValueOnce({
-          rows: [{ id_petugas: 2, employee_id: 'ADM001', username: 'admin2', name: 'Admin Two', phone_number: null, user_role: 'admin', created_at: new Date().toISOString() }],
-        });
+          rows: [{ id_petugas: 2, employee_id: 'ADM001', username: 'admin2', name: 'Admin Two', phone_number: null, email: 'admin2@example.com', user_role: 'admin', created_at: new Date().toISOString() }],
+        }); // insert
 
       await createAdmin(req, res);
 

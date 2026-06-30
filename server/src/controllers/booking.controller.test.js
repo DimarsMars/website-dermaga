@@ -17,6 +17,28 @@ jest.mock('../services/booking.service');
 jest.mock('../services/socket.service', () => ({
   broadcastBerthingUpdate: jest.fn(),
 }));
+// Mock the side-effect services used by manualBooking/submitBooking so tests
+// don't touch the real DB or email layer.
+jest.mock('../services/notification.service', () => ({
+  notifyStatusChange: jest.fn().mockResolvedValue(null),
+  notifyNewBooking: jest.fn().mockResolvedValue(null),
+  notifyDelayCascade: jest.fn().mockResolvedValue(null),
+  notifyRevision: jest.fn().mockResolvedValue(null),
+  notifyExtendRequest: jest.fn().mockResolvedValue(null),
+  notifyExtendApproval: jest.fn().mockResolvedValue(null),
+}));
+jest.mock('../services/activity.service', () => ({
+  ActivityService: { logActivity: jest.fn().mockResolvedValue(null) },
+  ACTIVITY_TYPES: {
+    LOGIN: 'login',
+    REGISTER: 'register',
+    BOOKING_CREATED: 'booking_created',
+    BOOKING_APPROVED: 'booking_approved',
+    BOOKING_REJECTED: 'booking_rejected',
+    BOOKING_EXTENDED: 'booking_extended',
+    POSITION_EDITED: 'position_edited',
+  },
+}));
 
 /**
  * Helper: create a mock Express request object
@@ -136,13 +158,10 @@ describe('Property 8: Booking Initial Status by Source', () => {
    * **Validates: Requirements 12.3**
    *
    * For any manual booking entry via manualBooking (officer/admin),
-   * the controller passes status_request to BookingService.createBooking.
-   *
-   * Note: The current implementation sets status_request to 'pending' for manual entries.
+   * the controller passes status_request = 'approved' to BookingService.createBooking.
    * Per Requirement 12.3, manual entries should be created with status "Approved".
-   * This test verifies the actual current behavior of the controller.
    */
-  it('manual booking entries via manualBooking pass status_request "pending" to the service (current behavior)', async () => {
+  it('manual booking entries via manualBooking pass status_request "approved" to the service', async () => {
     await fc.assert(
       fc.asyncProperty(manualBookingFormArb, officerAdminUserArb, async (formData, user) => {
         // Clear mocks for each iteration
@@ -151,7 +170,7 @@ describe('Property 8: Booking Initial Status by Source', () => {
         // Arrange: mock successful booking creation
         BookingService.createBooking.mockResolvedValue({
           success: true,
-          booking: { id_booking: 1, ...formData, status_request: 'pending' },
+          booking: { id_booking: 1, ...formData, status_request: 'approved' },
         });
 
         const req = createMockReq(formData, user);
@@ -160,11 +179,10 @@ describe('Property 8: Booking Initial Status by Source', () => {
         // Act
         await bookingController.manualBooking(req, res);
 
-        // Assert: createBooking was called with status_request = 'pending'
-        // NOTE: Per Requirement 12.3, this SHOULD be 'approved', but current code sets 'pending'
+        // Assert: createBooking was called with status_request = 'approved'
         expect(BookingService.createBooking).toHaveBeenCalledTimes(1);
         const callArgs = BookingService.createBooking.mock.calls[0][0];
-        expect(callArgs.status_request).toBe('pending');
+        expect(callArgs.status_request).toBe('approved');
       }),
       { numRuns: 50 }
     );

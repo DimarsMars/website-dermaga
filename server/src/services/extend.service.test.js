@@ -481,7 +481,7 @@ describe('Extend Time Feature', () => {
       expect(pool.query).not.toHaveBeenCalled();
     });
 
-    it('should include booking ID in the notification message', async () => {
+    it('should include the affected ship reference in the notification message', async () => {
       const affectedBookings = [
         { id_booking: 42, id_agen: 301, nama_kapal: 'MV Specific' },
       ];
@@ -492,7 +492,7 @@ describe('Extend Time Feature', () => {
           id_user: 301,
           user_type: 'agen',
           title: 'Pemberitahuan Delay Cascade',
-          message: 'Booking Anda (ID: 42) terdampak perpanjangan waktu kapal lain di posisi yang sama.',
+          message: 'Booking Anda untuk kapal MV Specific terdampak perpanjangan waktu kapal lain di posisi yang sama.',
           is_read: false,
           created_at: new Date().toISOString(),
         }],
@@ -501,7 +501,40 @@ describe('Extend Time Feature', () => {
       await NotificationService.notifyDelayCascade(null, affectedBookings);
 
       const callArgs = pool.query.mock.calls[0];
-      const message = callArgs[1].find(arg => typeof arg === 'string' && arg.includes('ID: 42'));
+      // notifyDelayCascade passes the interpolation args array as second arg:
+      //   NotificationModel.create({ id_user, user_type, title, message })
+      // NotificationModel.create inserts via pool.query(text, params).
+      // Verify the message arg includes the ship reference ("kapal MV Specific")
+      // so agents know which booking was impacted.
+      const message = callArgs[1].find(arg =>
+        typeof arg === 'string' && arg.includes('kapal MV Specific')
+      );
+      expect(message).toBeDefined();
+    });
+
+    it('should fall back to booking ID when ship name is not available', async () => {
+      const affectedBookings = [
+        { id_booking: 42, id_agen: 301, nama_kapal: null },
+      ];
+
+      pool.query.mockResolvedValue({
+        rows: [{
+          id_notif: 11,
+          id_user: 301,
+          user_type: 'agen',
+          title: 'Pemberitahuan Delay Cascade',
+          message: 'Booking Anda untuk booking #42 terdampak perpanjangan waktu kapal lain di posisi yang sama.',
+          is_read: false,
+          created_at: new Date().toISOString(),
+        }],
+      });
+
+      await NotificationService.notifyDelayCascade(null, affectedBookings);
+
+      const callArgs = pool.query.mock.calls[0];
+      const message = callArgs[1].find(arg =>
+        typeof arg === 'string' && arg.includes('booking #42')
+      );
       expect(message).toBeDefined();
     });
   });
