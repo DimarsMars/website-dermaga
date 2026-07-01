@@ -79,19 +79,14 @@ export default function BookingHistoryPage() {
     setLogModalOpen(true);
     setLogsLoading(true);
     try {
-      const res = await api.get('/activity', {
-        params: { activityType: undefined },
+      const res = await api.get('/activity', { 
+        params: { bookingId: booking.id_booking } 
       });
-      // Filter logs related to this booking
-      const allLogs = res.data.data || [];
-      const bookingLogs = allLogs.filter(
-        (log) =>
-          log.keterangan &&
-          (log.keterangan.includes(`ID: ${booking.id_booking}`) ||
-            log.keterangan.includes(`Booking #${booking.id_booking}`) ||
-            log.keterangan.includes(`id_booking: ${booking.id_booking}`))
-      );
-      setActivityLogs(bookingLogs.length > 0 ? bookingLogs : allLogs.slice(0, 10));
+
+      console.log("Data log yang diterima:", res.data.data);
+
+      // Tampilkan hanya yang benar-benar milik booking ini
+      setActivityLogs(res.data.data || []);
     } catch (err) {
       console.error('Failed to fetch activity logs:', err);
       setActivityLogs([]);
