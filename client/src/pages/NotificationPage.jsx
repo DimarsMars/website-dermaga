@@ -130,10 +130,30 @@ export default function NotificationPage() {
     await handleDelete(notif.id_notif);
   };
 
-  const handleExtendSuccess = (updatedBooking, message) => {
+  const handleExtendSuccess = async (updatedBooking, message) => {
     setExtendBooking(null);
     setToast({ message, type: 'success' });
-    fetchNotifications();
+    if (activeNotifId) {
+      // Ubah UI notifikasi di layar
+      setNotifications((prev) => 
+        prev.map((n) => 
+          n.id_notif === activeNotifId 
+            ? { ...n, is_submitted: true, is_read: true } // Tambahkan tanda is_submitted
+            : n
+        )
+      );
+
+      // Menandaiu sudah dibaca di database agar tidak saat baru di refresh
+      try {
+        await api.put(`/notifications/${activeNotifId}/read`);
+      } catch (err) {
+        console.error("Gagal update status read:", err);
+      }
+
+      setActiveNotifId(null);
+    } else {
+      fetchNotifications();
+    }
   };
 
   // Check if a notification is an "extend offer"
@@ -292,18 +312,31 @@ export default function NotificationPage() {
                   {/* Extend offer action buttons */}
                   {isExtendOffer(notif) && (
                     <div className="flex items-center gap-2 mt-3">
-                      <button
-                        onClick={(e) => handleExtendClick(notif, e)}
-                        className="px-3 py-1.5 text-xs font-medium bg-[#1e3a5f] text-white rounded-lg hover:bg-[#2a4f7f] transition-colors"
-                      >
-                        Perpanjang Waktu
-                      </button>
-                      <button
-                        onClick={(e) => handleDismissExtend(notif, e)}
-                        className="px-3 py-1.5 text-xs font-medium bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
-                      >
-                        Abaikan
-                      </button>
+                      {notif.is_submitted ? (
+                        // TAMPILAN TOMBOL MATI (SETELAH SUBMIT)
+                        <button 
+                          disabled
+                          className="px-3 py-1.5 text-xs font-medium bg-gray-100 text-gray-500 rounded-lg cursor-not-allowed border border-gray-200"
+                        >
+                          Perpanjangan Waktu Sudah Diajukan
+                        </button>
+                      ) : (
+                        // TAMPILAN TOMBOL (SEBELUM SUBMIT)
+                        <>
+                          <button
+                            onClick={(e) => handleExtendClick(notif, e)}
+                            className="px-3 py-1.5 text-xs font-medium bg-[#1e3a5f] text-white rounded-lg hover:bg-[#2a4f7f] transition-colors"
+                          >
+                            Perpanjang Waktu
+                          </button>
+                          <button
+                            onClick={(e) => handleDismissExtend(notif, e)}
+                            className="px-3 py-1.5 text-xs font-medium bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+                          >
+                            Abaikan
+                          </button>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
