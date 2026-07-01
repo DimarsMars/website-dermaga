@@ -6,15 +6,15 @@ const pool = require('../config/db');
 const ActivityModel = {
   /**
    * Create a new activity log entry.
-   * @param {{ id_user: number, user_type: string, activity_type: string, keterangan: string }} data
+   * @param {{ id_user: number, user_type: string, activity_type: string, keterangan: string, id_booking: number }} data
    * @returns {Promise<object>} The created log entry
    */
-  async create({ id_user, user_type, activity_type, keterangan }) {
+  async create({ id_user, user_type, activity_type, keterangan, id_booking }) {
     const result = await pool.query(
-      `INSERT INTO log_activity (id_user, user_type, activity_type, keterangan)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id_log, id_user, user_type, date_time, activity_type, keterangan`,
-      [id_user, user_type, activity_type, keterangan]
+      `INSERT INTO log_activity (id_user, user_type, activity_type, keterangan, id_booking)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING *`,
+      [id_user, user_type, activity_type, keterangan, id_booking || null]
     );
     return result.rows[0];
   },
@@ -51,10 +51,10 @@ const ActivityModel = {
 
   /**
    * Find activity logs with optional filters.
-   * @param {{ startDate?: string, endDate?: string, activityType?: string, userId?: number, userType?: string }} filters
+   * @param {{ startDate?: string, endDate?: string, activityType?: string, userId?: number, userType?: string, bookingId?: number }} filters
    * @returns {Promise<object[]>} Array of filtered log entries
    */
-  async findFiltered({ startDate, endDate, activityType, userId, userType }) {
+  async findFiltered({ startDate, endDate, activityType, userId, userType, bookingId }) {
     const conditions = [];
     const params = [];
     let paramIndex = 1;
@@ -89,12 +89,18 @@ const ActivityModel = {
       paramIndex++;
     }
 
+    if (bookingId) {
+      conditions.push(`id_booking = $${paramIndex}`);
+      params.push(bookingId);
+      paramIndex++;
+    }
+
     const whereClause = conditions.length > 0
       ? `WHERE ${conditions.join(' AND ')}`
       : '';
 
     const result = await pool.query(
-      `SELECT id_log, id_user, user_type, date_time, activity_type, keterangan
+      `SELECT id_log, id_user, user_type, date_time, activity_type, keterangan, id_booking
        FROM log_activity
        ${whereClause}
        ORDER BY date_time DESC`,

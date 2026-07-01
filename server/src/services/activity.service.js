@@ -34,12 +34,13 @@ const ActivityService = {
    * @param {string} keterangan - Description of the activity
    * @returns {Promise<object>} The created log entry
    */
-  async logActivity(userId, userType, activityType, keterangan) {
+  async logActivity(userId, userType, activityType, keterangan, id_booking = null) {
     return ActivityModel.create({
       id_user: userId,
       user_type: userType,
       activity_type: activityType,
       keterangan,
+      id_booking,
     });
   },
 
@@ -51,26 +52,22 @@ const ActivityService = {
    * @returns {Promise<object[]>} Array of log entries
    */
   async getActivityLogs(user, filters = {}) {
-    const { startDate, endDate, activityType } = filters;
+    const { startDate, endDate, activityType, bookingId } = filters;
 
-    if (user.role === 'agen') {
-      // Agents see only their own logs
-      return ActivityModel.findFiltered({
-        startDate,
-        endDate,
-        activityType,
-        userId: user.id,
-        userType: 'agen',
-      });
-    }
-
-    // Officers and admins see all logs
-    return ActivityModel.findFiltered({
+    const queryFilters = {
       startDate,
       endDate,
       activityType,
-    });
-  },
+      bookingId: bookingId || null
+    };
+
+    if (user.role === 'agen' && !bookingId) {
+        queryFilters.userId = user.id;
+        queryFilters.userType = 'agen';
+      }
+
+    return ActivityModel.findFiltered(queryFilters);
+  }
 };
 
 module.exports = { ActivityService, ACTIVITY_TYPES };

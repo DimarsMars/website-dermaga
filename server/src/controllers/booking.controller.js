@@ -51,7 +51,8 @@ const bookingController = {
 
       // Log activity
       ActivityService.logActivity(req.user.id, req.user.role, ACTIVITY_TYPES.BOOKING_CREATED,
-        `Booking baru dibuat untuk kapal ${result.booking.nama_kapal || '-'} oleh ${req.user.username}`
+        `Booking baru dibuat untuk kapal ${result.booking.nama_kapal || '-'} oleh ${req.user.username}`,
+        result.booking.id_booking
       ).catch(err => console.error('Error logging activity:', err));
 
       return res.status(201).json({
@@ -107,7 +108,8 @@ const bookingController = {
 
       // Log activity
       ActivityService.logActivity(req.user.id, req.user.role, ACTIVITY_TYPES.BOOKING_APPROVED,
-        `Booking manual dibuat & disetujui untuk kapal ${result.booking.nama_kapal || '-'} (agen #${id_agen}) oleh ${req.user.username}`
+        `Booking manual dibuat & disetujui untuk kapal ${result.booking.nama_kapal || '-'} (agen #${id_agen}) oleh ${req.user.username}`,
+        result.booking.id_booking
       ).catch(err => console.error('Error logging activity:', err));
 
       return res.status(201).json({
@@ -211,7 +213,8 @@ const bookingController = {
 
       // Log activity
       ActivityService.logActivity(req.user.id, req.user.role, ACTIVITY_TYPES.BOOKING_APPROVED,
-        `Booking #${result.booking.id_booking} disetujui oleh ${req.user.username}`
+        `Booking #${result.booking.id_booking} disetujui oleh ${req.user.username}`,
+        result.booking.id_booking
       ).catch(err => console.error('Error logging activity:', err));
 
       return res.status(200).json({
@@ -257,7 +260,8 @@ const bookingController = {
 
       // Log activity
       ActivityService.logActivity(req.user.id, req.user.role, ACTIVITY_TYPES.BOOKING_REJECTED,
-        `Booking #${result.booking.id_booking} ditolak oleh ${req.user.username}`
+        `Booking #${result.booking.id_booking} ditolak oleh ${req.user.username}`,
+        result.booking.id_booking
       ).catch(err => console.error('Error logging activity:', err));
 
       return res.status(200).json({
@@ -329,7 +333,8 @@ const bookingController = {
 
       // Log activity
       ActivityService.logActivity(req.user.id, req.user.role, ACTIVITY_TYPES.BOOKING_EXTENDED,
-        `Permintaan perpanjangan Booking #${result.booking.id_booking} oleh ${req.user.username}`
+        `Permintaan perpanjangan Booking #${result.booking.id_booking} oleh ${req.user.username}`,
+        result.booking.id_booking
       ).catch(err => console.error('Error logging activity:', err));
 
       return res.status(200).json({
@@ -375,7 +380,8 @@ const bookingController = {
 
       // Log activity
       ActivityService.logActivity(req.user.id, req.user.role, ACTIVITY_TYPES.BOOKING_EXTENDED,
-        `Perpanjangan Booking #${result.booking.id_booking} disetujui oleh ${req.user.username}`
+        `Perpanjangan Booking #${result.booking.id_booking} disetujui oleh ${req.user.username}`,
+        result.booking.id_booking
       ).catch(err => console.error('Error logging activity:', err));
 
       return res.status(200).json({
@@ -463,7 +469,8 @@ const bookingController = {
 
       // Log activity
       ActivityService.logActivity(req.user.id, req.user.role, ACTIVITY_TYPES.POSITION_EDITED,
-        `Posisi Booking #${result.booking.id_booking} direvisi oleh ${req.user.username}`
+        `Posisi Booking #${result.booking.id_booking} direvisi oleh ${req.user.username}`,
+        result.booking.id_booking
       ).catch(err => console.error('Error logging activity:', err));
 
       return res.status(200).json({
@@ -559,7 +566,7 @@ const bookingController = {
         }
       }
 
-      ActivityService.logActivity(req.user.id, req.user.role, activityType, activityDesc).catch(err => 
+      ActivityService.logActivity(req.user.id, req.user.role, activityType, activityDesc, result.booking.id_booking).catch(err => 
         console.error('Error logging activity:', err)
       );
 

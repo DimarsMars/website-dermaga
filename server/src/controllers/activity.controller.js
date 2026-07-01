@@ -12,12 +12,13 @@ const activityController = {
    */
   async getActivityLogs(req, res) {
     try {
-      const { startDate, endDate, activityType } = req.query;
+      const { startDate, endDate, activityType, bookingId } = req.query;
 
       const logs = await ActivityService.getActivityLogs(req.user, {
         startDate,
         endDate,
         activityType,
+        bookingId,
       });
 
       return res.status(200).json({
