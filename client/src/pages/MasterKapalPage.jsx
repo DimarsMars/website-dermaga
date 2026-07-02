@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import api from '../services/api';
 import { formatNumber } from '../utils/format';
 import { parseApiError } from '../utils/errorMessages';
@@ -15,6 +15,11 @@ export default function MasterKapalPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState({});
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importFile, setImportFile] = useState(null);
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState('');
+  const importFileRef = useRef(null);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const [formData, setFormData] = useState({
@@ -216,6 +221,59 @@ export default function MasterKapalPage() {
     resetForm();
   };
 
+  const closeImportModal = () => {
+    setShowImportModal(false);
+    setImportFile(null);
+    setImportError('');
+    if (importFileRef.current) importFileRef.current.value = '';
+  };
+
+  const handleImportSubmit = async (e) => {
+    e.preventDefault();
+    setImportError('');
+
+    if (!importFile) {
+      setImportError('Pilih file Excel terlebih dahulu.');
+      return;
+    }
+
+    setImporting(true);
+    try {
+      const XLSX = await import('xlsx');
+      const data = await importFile.arrayBuffer();
+      const workbook = XLSX.read(data, { type: 'array' });
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const rows = XLSX.utils.sheet_to_json(worksheet, { defval: null });
+
+      if (rows.length === 0) {
+        setImportError('File Excel kosong atau tidak ada data yang dapat dibaca.');
+        setImporting(false);
+        return;
+      }
+
+      const payloads = rows.map((row) => ({
+        nama_kapal: row.nama_kapal != null ? String(row.nama_kapal) : null,
+        loa: row.loa != null && row.loa !== '' ? parseFloat(row.loa) : null,
+        gt: row.gt != null && row.gt !== '' ? parseFloat(row.gt) : null,
+        id_agen: row.id_agen != null && row.id_agen !== '' ? parseInt(row.id_agen, 10) : null,
+        type: row.type != null && row.type !== '' ? String(row.type) : null,
+        call_sign: row.call_sign != null && row.call_sign !== '' ? String(row.call_sign) : null,
+        keterangan: row.keterangan != null && row.keterangan !== '' ? String(row.keterangan) : null,
+      }));
+
+      await Promise.all(payloads.map((payload) => api.post('/ships', payload)));
+
+      closeImportModal();
+      fetchShips();
+    } catch (err) {
+      const msg = err?.response?.data?.message || err?.message || 'Terjadi kesalahan saat mengimpor data.';
+      setImportError(`Gagal mengimpor: ${msg}`);
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentShips = ships.slice(indexOfFirstItem, indexOfLastItem);
@@ -258,15 +316,26 @@ export default function MasterKapalPage() {
         <div className="card overflow-hidden">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-[#1e3a5f]">Daftar Kapal</h2>
-            <button
-              onClick={() => setShowAddModal(true)}
-              className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-all duration-200 shadow-sm flex items-center gap-1.5"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Add Kapal
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowImportModal(true)}
+                className="px-4 py-2 bg-[#1e3a5f] text-white text-sm font-medium rounded-lg hover:bg-[#16304f] transition-all duration-200 shadow-sm flex items-center gap-1.5"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                </svg>
+                Import Excel
+              </button>
+              <button
+                onClick={() => setShowAddModal(true)}
+                className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-all duration-200 shadow-sm flex items-center gap-1.5"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Add Kapal
+              </button>
+            </div>
           </div>
 
           <div className="overflow-x-auto rounded-lg border border-gray-200">
@@ -303,9 +372,9 @@ export default function MasterKapalPage() {
                     </td>
                   </tr>
                 ) : (
-                  currentShips.map((ship) => (
+                  currentShips.map((ship, index) => (
                     <tr key={ship.id_kapal} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 text-gray-600">{ship.id_kapal}</td>
+                      <td className="px-4 py-3 text-gray-600">{(currentPage - 1) * itemsPerPage + index + 1}</td>
                       <td className="px-4 py-3 font-medium text-gray-800">{ship.nama_kapal || '-'}</td>
                       <td className="px-4 py-3 text-center text-gray-600">{ship.type || '-'}</td>
                       <td className="px-4 py-3 text-center text-gray-600">{ship.loa ? formatNumber(ship.loa) : '-'}</td>
@@ -623,6 +692,105 @@ export default function MasterKapalPage() {
                 {submitting ? 'Menghapus...' : 'Hapus'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {/* Import Excel Modal */}
+      {showImportModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4" onClick={closeImportModal}>
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-md border-2 border-[#5b9bd5]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between pt-6 px-6 pb-4">
+              <div className="flex-1" />
+              <h2 className="text-2xl font-bold text-[#1e3a5f]">Import Excel</h2>
+              <div className="flex-1 flex justify-end">
+                <button onClick={closeImportModal} className="text-gray-400 hover:text-gray-600 transition-colors">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Error */}
+            {importError && (
+              <div className="mx-6 mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+                {importError}
+                <button onClick={() => setImportError('')} className="ml-2 text-red-500 hover:text-red-700 font-bold">×</button>
+              </div>
+            )}
+
+            {/* Form */}
+            <form onSubmit={handleImportSubmit} className="px-6 pb-6 space-y-5">
+              {/* Info kolom */}
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-700 space-y-1">
+                <p className="font-semibold">Kolom yang diperlukan di file Excel:</p>
+                <p><code className="bg-blue-100 px-1 rounded">nama_kapal</code>, <code className="bg-blue-100 px-1 rounded">loa</code>, <code className="bg-blue-100 px-1 rounded">gt</code>, <code className="bg-blue-100 px-1 rounded">id_agen</code>, <code className="bg-blue-100 px-1 rounded">type</code>, <code className="bg-blue-100 px-1 rounded">call_sign</code>, <code className="bg-blue-100 px-1 rounded">keterangan</code></p>
+              </div>
+
+              {/* File Upload Area */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Pilih File <span className="text-red-500">*</span>
+                </label>
+                <div
+                  className="relative flex flex-col items-center justify-center border-2 border-dashed border-[#5b9bd5] rounded-xl p-6 bg-blue-50/40 hover:bg-blue-50 transition-colors cursor-pointer"
+                  onClick={() => importFileRef.current && importFileRef.current.click()}
+                >
+                  <svg className="w-10 h-10 text-[#5b9bd5] mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  {importFile ? (
+                    <p className="text-sm font-medium text-[#1e3a5f]">{importFile.name}</p>
+                  ) : (
+                    <>
+                      <p className="text-sm font-medium text-gray-600">Klik untuk memilih file</p>
+                      <p className="text-xs text-gray-400 mt-1">.xlsx, .xls, atau .csv</p>
+                    </>
+                  )}
+                  <input
+                    ref={importFileRef}
+                    type="file"
+                    accept=".xlsx,.xls,.csv"
+                    className="hidden"
+                    onChange={(e) => {
+                      setImportFile(e.target.files[0] || null);
+                      setImportError('');
+                    }}
+                  />
+                </div>
+                {importFile && (
+                  <button
+                    type="button"
+                    onClick={() => { setImportFile(null); if (importFileRef.current) importFileRef.current.value = ''; }}
+                    className="mt-2 text-xs text-red-500 hover:text-red-700 transition-colors"
+                  >
+                    Hapus file
+                  </button>
+                )}
+              </div>
+
+              <div className="flex justify-center pt-2">
+                <button
+                  type="submit"
+                  disabled={importing || !importFile}
+                  className="px-8 py-2.5 bg-[#1e3a5f] text-white font-semibold rounded-lg hover:bg-[#16304f] transition-all duration-200 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {importing ? (
+                    <>
+                      <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                      Mengimpor...
+                    </>
+                  ) : 'Import'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

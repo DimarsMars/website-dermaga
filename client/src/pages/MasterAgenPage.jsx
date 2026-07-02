@@ -281,9 +281,9 @@ export default function MasterAgenPage() {
                     </td>
                   </tr>
                 ) : (
-                  currentAgents.map((agent) => (
+                  currentAgents.map((agent, index) => (
                     <tr key={agent.id_agen || agent.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 text-gray-600">{agent.id_agen || agent.id}</td>
+                      <td className="px-4 py-3 text-gray-600">{(currentPage - 1) * itemsPerPage + index + 1}</td>
                       <td className="px-4 py-3 font-medium text-gray-800">{agent.agency_name || '-'}</td>
                       <td className="px-4 py-3 text-gray-600">{agent.company_address || '-'}</td>
                       <td className="px-4 py-3 text-gray-600">{agent.npwp || '-'}</td>
