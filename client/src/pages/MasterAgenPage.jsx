@@ -11,6 +11,8 @@ export default function MasterAgenPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState({});
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
   const [formData, setFormData] = useState({
     username: '',
     password: '',
@@ -191,6 +193,11 @@ export default function MasterAgenPage() {
     resetForm();
   };
 
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentAgents = agents.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(agents.length / itemsPerPage);
+
   return (
     <div className="min-h-screen bg-gray-50 pb-10">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -274,7 +281,7 @@ export default function MasterAgenPage() {
                     </td>
                   </tr>
                 ) : (
-                  agents.map((agent) => (
+                  currentAgents.map((agent) => (
                     <tr key={agent.id_agen || agent.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-4 py-3 text-gray-600">{agent.id_agen || agent.id}</td>
                       <td className="px-4 py-3 font-medium text-gray-800">{agent.agency_name || '-'}</td>
@@ -315,6 +322,31 @@ export default function MasterAgenPage() {
                 )}
               </tbody>
             </table>
+
+            {/* Pagination Controls */}
+            {agents.length > itemsPerPage && (
+              <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
+                <p className="text-sm text-gray-600">
+                  Menampilkan {indexOfFirstItem + 1} - {Math.min(indexOfLastItem, agents.length)} dari {agents.length} data
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage(currentPage - 1)}
+                    className="px-3 py-1 text-sm bg-white border border-gray-200 rounded-md hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    Sebelumnya
+                  </button>
+                  <button
+                    disabled={currentPage === totalPages}
+                    onClick={() => setCurrentPage(currentPage + 1)}
+                    className="px-3 py-1 text-sm bg-white border border-gray-200 rounded-md hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    Selanjutnya
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
