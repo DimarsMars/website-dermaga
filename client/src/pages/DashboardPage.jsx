@@ -1,5 +1,7 @@
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import api from '../services/api';
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -9,6 +11,30 @@ export default function DashboardPage() {
   const isPetugas = user?.role === 'petugas' || user?.role === 'admin';
   const roleLabel = user?.role === 'agen' ? 'Agen' : user?.role === 'admin' ? 'Admin' : 'Petugas';
   const displayName = user?.name || user?.username || 'User';
+  const [pendingCount, setPendingCount] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchDashboardStats = async () => {
+      try {
+        const res = await api.get('/bookings');
+        const bookings = res.data.data || [];
+        // Hitung jumlah yang statusnya 'pending'
+        const pending = bookings.filter((b) => b.status_request === 'pending').length;
+        setPendingCount(pending);
+      } catch (err) {
+        console.error('Failed to fetch stats:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (isPetugas) {
+      fetchDashboardStats();
+    } else {
+      setLoading(false);
+    }
+  }, []);
 
   return (
     <div className="min-h-[calc(100vh-64px)] bg-slate-50 py-8 px-4 sm:px-6 lg:px-8">
@@ -33,18 +59,18 @@ export default function DashboardPage() {
 
         {/* PERMINTAAN PENDING: Hanya muncul untuk akun Petugas/Admin */}
         {isPetugas && (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 shadow-sm flex items-center justify-between transition-all duration-200 hover:bg-amber-100/50">
-            <div className="space-y-1">
-              <h3 className="text-sm font-bold text-amber-800 uppercase tracking-wider">Permintaan Pending</h3>
-              <p className="text-xs text-amber-700 font-medium">Jumlah booking dermaga sedang menunggu proses persetujuan Anda.</p>
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 shadow-sm flex items-center justify-between">
+              <div className="space-y-1">
+                <h3 className="text-sm font-bold text-amber-800 uppercase tracking-wider">Permintaan Pending</h3>
+                <p className="text-xs text-amber-700 font-medium">
+                  Terdapat <span className="font-bold">{loading ? '...' : pendingCount}</span> booking dermaga menunggu persetujuan Anda.
+                </p>
+              </div>
+              <div className="w-10 h-10 bg-amber-100 text-amber-700 rounded-lg flex items-center justify-center flex-shrink-0">
+                <span className="text-lg font-bold">{pendingCount}</span>
+              </div>
             </div>
-            <div className="w-10 h-10 bg-amber-100 text-amber-700 rounded-lg flex items-center justify-center flex-shrink-0 shadow-inner">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-          </div>
-        )}
+          )}
 
         {/* MENU AKSI UTAMA (3 Kolom Sejajar) */}
         <div>
