@@ -46,11 +46,14 @@ function validate(schema) {
         field: d.path.join('.'),
         message: d.message,
       }));
+      // Gunakan pesan Joi pertama yang spesifik sebagai message utama,
+      // agar frontend yang membaca error.message mendapat pesan yang jelas.
+      const primaryMessage = details[0]?.message || 'Data yang dikirim tidak valid';
       return res.status(422).json({
         success: false,
         error: {
           code: 'VALIDATION_FIELDS',
-          message: 'Missing or invalid fields',
+          message: primaryMessage,
           details,
         },
       });
