@@ -33,8 +33,8 @@ export default function ChangePasswordModal({ isOpen, onClose }) {
       return;
     }
 
-    if (newPassword.length < 6) {
-      setError('Password baru minimal harus 6 karakter');
+    if (newPassword.length < 8) {
+      setError('Password baru minimal 8 karakter');
       return;
     }
 
