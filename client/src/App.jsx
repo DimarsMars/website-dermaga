@@ -66,7 +66,7 @@ function NotFoundPage() {
           href="/"
           className="mt-6 inline-block px-6 py-2.5 bg-[#1e3a5f] text-white rounded-lg hover:bg-[#2a4a73] transition-all duration-200 shadow-sm font-medium"
         >
-          Kembali ke Dashboard
+          Kembali
         </a>
       </div>
     </div>
