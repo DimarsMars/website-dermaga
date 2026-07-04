@@ -13,33 +13,67 @@ const PASSWORD_MIN = 8;
 
 const passwordSchema = Joi.string()
   .min(PASSWORD_MIN)
-  .message(`Password must be at least ${PASSWORD_MIN} characters`)
+  .messages({
+    'string.min': `Password minimal ${PASSWORD_MIN} karakter`,
+    'string.empty': 'Password wajib diisi',
+    'any.required': 'Password wajib diisi',
+  })
   .required();
 
 const registerSchema = Joi.object({
-  username: Joi.string().min(3).max(50).alphanum().required(),
+  username: Joi.string().min(3).max(50).alphanum().required().messages({
+    'string.min': 'Username minimal 3 karakter',
+    'string.max': 'Username maksimal 50 karakter',
+    'string.alphanum': 'Username hanya boleh mengandung huruf dan angka',
+    'string.empty': 'Username wajib diisi',
+    'any.required': 'Username wajib diisi',
+  }),
   password: passwordSchema,
   // Accept both camelCase (from RegisterPage client) and snake_case
   // (from MasterAgenPage admin form). At least one must be present.
-  agencyName: Joi.string().min(2).max(100).allow('', null).optional(),
-  agency_name: Joi.string().min(2).max(100).allow('', null).optional(),
+  agencyName: Joi.string().min(2).max(100).allow('', null).optional().messages({
+    'string.min': 'Nama perusahaan minimal 2 karakter',
+    'string.max': 'Nama perusahaan maksimal 100 karakter',
+  }),
+  agency_name: Joi.string().min(2).max(100).allow('', null).optional().messages({
+    'string.min': 'Nama perusahaan minimal 2 karakter',
+    'string.max': 'Nama perusahaan maksimal 100 karakter',
+  }),
   npwp: Joi.string().max(20).allow('', null).optional(),
   address: Joi.string().max(500).allow('', null).optional(),
   company_address: Joi.string().max(500).allow('', null).optional(),
   phone: Joi.string().max(20).allow('', null).optional(),
   phone_number: Joi.string().max(20).allow('', null).optional(),
-  email: Joi.string().email().max(100).required(),
+  email: Joi.string().email().max(100).required().messages({
+    'string.email': 'Format email tidak valid',
+    'string.empty': 'Email wajib diisi',
+    'any.required': 'Email wajib diisi',
+  }),
   recaptchaToken: Joi.string().allow('', null).optional(),
-}).or('agencyName', 'agency_name');
+}).or('agencyName', 'agency_name').messages({
+  'object.missing': 'Nama perusahaan wajib diisi',
+});
 
 const loginSchema = Joi.object({
-  username: Joi.string().min(3).max(50).required(),
-  password: Joi.string().min(1).required(),
+  username: Joi.string().min(3).max(50).required().messages({
+    'string.min': 'Username minimal 3 karakter',
+    'string.max': 'Username maksimal 50 karakter',
+    'string.empty': 'Username wajib diisi',
+    'any.required': 'Username wajib diisi',
+  }),
+  password: Joi.string().min(1).required().messages({
+    'string.empty': 'Password wajib diisi',
+    'any.required': 'Password wajib diisi',
+  }),
   recaptchaToken: Joi.string().allow('', null).optional(),
 });
 
 const resetPasswordRequestSchema = Joi.object({
-  email: Joi.string().email().max(100).required(),
+  email: Joi.string().email().max(100).required().messages({
+    'string.email': 'Format email tidak valid',
+    'string.empty': 'Alamat email wajib diisi',
+    'any.required': 'Alamat email wajib diisi',
+  }),
 });
 
 const confirmResetPasswordSchema = Joi.object({
@@ -53,21 +87,57 @@ const changePasswordSchema = Joi.object({
 });
 
 const createOfficerSchema = Joi.object({
-  employee_id: Joi.string().min(1).max(20).required(),
-  username: Joi.string().min(3).max(50).alphanum().required(),
+  employee_id: Joi.string().min(1).max(20).required().messages({
+    'string.empty': 'Employee ID wajib diisi',
+    'string.max': 'Employee ID maksimal 20 karakter',
+    'any.required': 'Employee ID wajib diisi',
+  }),
+  username: Joi.string().min(3).max(50).alphanum().required().messages({
+    'string.min': 'Username minimal 3 karakter',
+    'string.max': 'Username maksimal 50 karakter',
+    'string.alphanum': 'Username hanya boleh mengandung huruf dan angka',
+    'string.empty': 'Username wajib diisi',
+    'any.required': 'Username wajib diisi',
+  }),
   password: passwordSchema,
-  name: Joi.string().min(2).max(100).required(),
+  name: Joi.string().min(2).max(100).required().messages({
+    'string.min': 'Nama minimal 2 karakter',
+    'string.empty': 'Nama wajib diisi',
+    'any.required': 'Nama wajib diisi',
+  }),
   phone_number: Joi.string().max(20).allow('', null).optional(),
-  email: Joi.string().email().max(100).required(),
+  email: Joi.string().email().max(100).required().messages({
+    'string.email': 'Format email tidak valid',
+    'string.empty': 'Email wajib diisi',
+    'any.required': 'Email wajib diisi',
+  }),
 });
 
 const createAdminSchema = Joi.object({
-  employee_id: Joi.string().min(1).max(20).required(),
-  username: Joi.string().min(3).max(50).alphanum().required(),
+  employee_id: Joi.string().min(1).max(20).required().messages({
+    'string.empty': 'Employee ID wajib diisi',
+    'string.max': 'Employee ID maksimal 20 karakter',
+    'any.required': 'Employee ID wajib diisi',
+  }),
+  username: Joi.string().min(3).max(50).alphanum().required().messages({
+    'string.min': 'Username minimal 3 karakter',
+    'string.max': 'Username maksimal 50 karakter',
+    'string.alphanum': 'Username hanya boleh mengandung huruf dan angka',
+    'string.empty': 'Username wajib diisi',
+    'any.required': 'Username wajib diisi',
+  }),
   password: passwordSchema,
-  name: Joi.string().min(2).max(100).required(),
+  name: Joi.string().min(2).max(100).required().messages({
+    'string.min': 'Nama minimal 2 karakter',
+    'string.empty': 'Nama wajib diisi',
+    'any.required': 'Nama wajib diisi',
+  }),
   phone_number: Joi.string().max(20).allow('', null).optional(),
-  email: Joi.string().email().max(100).required(),
+  email: Joi.string().email().max(100).required().messages({
+    'string.email': 'Format email tidak valid',
+    'string.empty': 'Email wajib diisi',
+    'any.required': 'Email wajib diisi',
+  }),
 });
 
 const refreshTokenSchema = Joi.object({
@@ -90,11 +160,14 @@ function validate(schema) {
         field: d.path.join('.'),
         message: d.message,
       }));
+      // Gunakan pesan Joi pertama yang spesifik sebagai message utama,
+      // agar frontend yang membaca error.message mendapat pesan yang jelas.
+      const primaryMessage = details[0]?.message || 'Data yang dikirim tidak valid';
       return res.status(422).json({
         success: false,
         error: {
           code: 'VALIDATION_FIELDS',
-          message: 'Missing or invalid fields',
+          message: primaryMessage,
           details,
         },
       });

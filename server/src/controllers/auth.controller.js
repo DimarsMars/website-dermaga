@@ -115,7 +115,7 @@ async function register(req, res) {
     if (existingUser.rows.length > 0) {
       return res.status(409).json({
         success: false,
-        error: { code: 'VALIDATION_FIELDS', message: 'Username already exists' },
+        error: { code: 'VALIDATION_FIELDS', message: 'Username sudah digunakan' },
       });
     }
 
@@ -127,7 +127,7 @@ async function register(req, res) {
     if (existingEmail.rows.length > 0) {
       return res.status(409).json({
         success: false,
-        error: { code: 'VALIDATION_FIELDS', message: 'Email already registered' },
+        error: { code: 'VALIDATION_FIELDS', message: 'Email sudah digunakan' },
       });
     }
 
@@ -147,7 +147,7 @@ async function register(req, res) {
       if (isDuplicateEmailError(insertErr)) {
         return res.status(409).json({
           success: false,
-          error: { code: 'VALIDATION_FIELDS', message: 'Email already registered' },
+          error: { code: 'VALIDATION_FIELDS', message: 'Email sudah digunakan' },
         });
       }
       throw insertErr;
@@ -225,7 +225,7 @@ async function login(req, res) {
     if (!user) {
       return res.status(401).json({
         success: false,
-        error: { code: 'AUTH_INVALID', message: 'Invalid credentials' },
+        error: { code: 'AUTH_INVALID', message: 'Username atau password yang Anda masukkan salah' },
       });
     }
 
@@ -234,7 +234,7 @@ async function login(req, res) {
     if (!passwordValid) {
       return res.status(401).json({
         success: false,
-        error: { code: 'AUTH_INVALID', message: 'Invalid credentials' },
+        error: { code: 'AUTH_INVALID', message: 'Username atau password yang Anda masukkan salah' },
       });
     }
 
@@ -583,7 +583,7 @@ async function createOfficer(req, res) {
     if (existingEmail.rows.length > 0) {
       return res.status(409).json({
         success: false,
-        error: { code: 'VALIDATION_FIELDS', message: 'Email already registered' },
+        error: { code: 'VALIDATION_FIELDS', message: 'Email sudah digunakan' },
       });
     }
 
@@ -603,7 +603,7 @@ async function createOfficer(req, res) {
       if (isDuplicateEmailError(insertErr)) {
         return res.status(409).json({
           success: false,
-          error: { code: 'VALIDATION_FIELDS', message: 'Email already registered' },
+          error: { code: 'VALIDATION_FIELDS', message: 'Email sudah digunakan' },
         });
       }
       throw insertErr;
@@ -650,7 +650,7 @@ async function createAdmin(req, res) {
     if (existingEmail.rows.length > 0) {
       return res.status(409).json({
         success: false,
-        error: { code: 'VALIDATION_FIELDS', message: 'Email already registered' },
+        error: { code: 'VALIDATION_FIELDS', message: 'Email sudah digunakan' },
       });
     }
 
@@ -670,7 +670,7 @@ async function createAdmin(req, res) {
       if (isDuplicateEmailError(insertErr)) {
         return res.status(409).json({
           success: false,
-          error: { code: 'VALIDATION_FIELDS', message: 'Email already registered' },
+          error: { code: 'VALIDATION_FIELDS', message: 'Email sudah digunakan' },
         });
       }
       throw insertErr;
