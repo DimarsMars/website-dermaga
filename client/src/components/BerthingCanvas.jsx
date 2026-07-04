@@ -59,21 +59,26 @@ export default function BerthingCanvas({ bookings = [], dockLength = MAX_LENGTH,
    * Returns ships with a `lane` property + total lane count.
    */
   const assignLanes = (ships) => {
-    // Sort by left position (descending leftPercent = ascending meter from right)
+    // Sort by leftPercent ascending (high-meter ships first, i.e. further left on canvas)
     const sorted = [...ships].sort((a, b) => a.leftPercent - b.leftPercent);
-    const lanes = []; // each lane = array of placed ships
+    const lanes = [];
 
     sorted.forEach((ship) => {
-      const shipStart = ship.leftPercent;
-      const shipEnd = ship.leftPercent + ship.widthPercent;
+      // Gunakan posisi BODY saja (tanpa clearance) untuk deteksi overlap lane.
+      // Clearance (5m) ada di KIRI blok (sisi meter tinggi/pos_end).
+      // Body mulai setelah clearance: leftPercent + clearanceWidthPercent.
+      const clearW = ship.clearanceWidthPercent || 0;
+      const bodyStart = ship.leftPercent + clearW;
+      const bodyEnd   = ship.leftPercent + ship.widthPercent;
 
-      // Find the first lane where this ship does NOT overlap horizontally
       let placed = false;
       for (let i = 0; i < lanes.length; i++) {
         const overlaps = lanes[i].some((other) => {
-          const oStart = other.leftPercent;
-          const oEnd = other.leftPercent + other.widthPercent;
-          return shipStart < oEnd && shipEnd > oStart;
+          const oClearW    = other.clearanceWidthPercent || 0;
+          const oBodyStart = other.leftPercent + oClearW;
+          const oBodyEnd   = other.leftPercent + other.widthPercent;
+          // Overlap hanya jika body fisik benar-benar bersilangan
+          return bodyStart < oBodyEnd && bodyEnd > oBodyStart;
         });
         if (!overlaps) {
           ship.lane = i;
@@ -82,7 +87,6 @@ export default function BerthingCanvas({ bookings = [], dockLength = MAX_LENGTH,
           break;
         }
       }
-      // No free lane found → create a new one
       if (!placed) {
         ship.lane = lanes.length;
         lanes.push([ship]);
@@ -93,6 +97,7 @@ export default function BerthingCanvas({ bookings = [], dockLength = MAX_LENGTH,
   };
 
   // Calculate ship block positions and split into 2 groups (active / inactive)
+  const CLEARANCE_M = 5; // meter, harus sama dengan konstanta backend
   const { activeData, inactiveData } = useMemo(() => {
     const active = [];
     const inactive = [];
@@ -101,16 +106,22 @@ export default function BerthingCanvas({ bookings = [], dockLength = MAX_LENGTH,
       .filter((b) => b.pos_start != null && b.pos_end != null && b.status_request !== 'rejected')
       .forEach((booking) => {
         const posStart = Number(booking.pos_start);
-        const posEnd = Number(booking.pos_end);
-        const leftPercent = (((dockLength - Math.max(posStart, posEnd)) / dockLength) * 98) + 1;
-        const widthPercent = (Math.abs(posEnd - posStart) / dockLength) * 98;
-        const isActive = booking.status === 'active';
+        const posEnd   = Number(booking.pos_end);
+        const loa      = booking.loa != null ? Number(booking.loa) : Math.max(posEnd - posStart - CLEARANCE_M, 1);
+
+        const leftPercent          = (((dockLength - Math.max(posStart, posEnd)) / dockLength) * 98) + 1;
+        const widthPercent         = (Math.abs(posEnd - posStart) / dockLength) * 98;
+        const bodyWidthPercent     = (loa / dockLength) * 98;
+        const clearanceWidthPercent = (CLEARANCE_M / dockLength) * 98;
+        const isActive             = booking.status === 'active';
 
         const block = {
           ...booking,
           leftPercent,
-          widthPercent: Math.max(widthPercent, 1.5),
-          color: SHIP_STATUS_COLORS[booking.status_request] || '#3B82F6',
+          widthPercent:          Math.max(widthPercent, 1.5),
+          bodyWidthPercent,
+          clearanceWidthPercent,
+          color:   SHIP_STATUS_COLORS[booking.status_request] || '#3B82F6',
           isActive,
         };
 
@@ -122,7 +133,7 @@ export default function BerthingCanvas({ bookings = [], dockLength = MAX_LENGTH,
       });
 
     return {
-      activeData: assignLanes(active),
+      activeData:   assignLanes(active),
       inactiveData: assignLanes(inactive),
     };
   }, [bookings, dockLength]);
@@ -138,38 +149,88 @@ export default function BerthingCanvas({ bookings = [], dockLength = MAX_LENGTH,
     return `${percentage + 1}%`;
   };
 
-  // Render a single ship block, positioned by its lane
+  // Render satu blok kapal: [clearance kiri (arsir)] + [body kanan (berwarna)]
+  // Kanvas: meter BESAR di KIRI, meter KECIL di KANAN.
+  // pos_end (meter besar) ada di kiri → clearance zone tampil di kiri blok.
+  // pos_start (meter kecil) ada di kanan → badan kapal tampil di kanan blok.
   const renderShipBlock = (ship) => {
     const isSolid = ship.isActive;
-    const lane = ship.lane || 0;
+    const lane    = ship.lane || 0;
+
+    const posStart = Number(ship.pos_start);
+    const posEnd   = Number(ship.pos_end);
+    const loa      = ship.loa != null ? Number(ship.loa) : Math.max(posEnd - posStart - CLEARANCE_M, 1);
+    const totalM   = posEnd - posStart; // total meter blok
+
+    // Persentase masing-masing bagian relatif terhadap LEBAR BLOK (bukan canvas)
+    const clearPct = (CLEARANCE_M / totalM) * 100;
+    const bodyPct  = (loa / totalM) * 100;
+
+    const totalWidthPercent = Math.max((totalM / dockLength) * 98, 1.5);
+    const topPx    = lane * LANE_HEIGHT + 2;
+    const heightPx = LANE_HEIGHT - 4;
+
+    const borderStyle  = isSolid ? '2.5px solid #000000' : '2px dashed #555555';
+
     return (
       <div
         key={ship.id_booking}
-        className="absolute cursor-pointer hover:brightness-110 transition-all z-10"
+        className="absolute flex"
         style={{
-          left: `${ship.leftPercent}%`,
-          width: `${ship.widthPercent}%`,
-          top: `${lane * LANE_HEIGHT + 2}px`,
-          height: `${LANE_HEIGHT - 4}px`,
-          backgroundColor: ship.color,
-          opacity: isSolid ? 1 : 0.55,
-          border: isSolid ? '2.5px solid #000000' : '2px dashed #555555',
-          borderRadius: '2px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          overflow: 'hidden',
-          boxShadow: isSolid ? '0 2px 6px rgba(0,0,0,0.3)' : 'none',
+          left:   `${ship.leftPercent}%`,
+          width:  `${totalWidthPercent}%`,
+          top:    `${topPx}px`,
+          height: `${heightPx}px`,
+          zIndex: 10,
         }}
-        title={`${ship.nama_kapal || 'Ship'} | ${ship.pos_start}m - ${ship.pos_end}m | ${ship.status} | ${ship.status_request}`}
-        onClick={() => onShipClick && onShipClick(ship)}
       >
-        <span style={{ fontSize: '11px', fontWeight: '800', color: '#000000' }} className="truncate px-1">
-          {ship.nama_kapal || ''}
-        </span>
+        {/* ── KIRI: Zona Clearance 5m (sisi pos_end / meter tinggi) ── */}
+        <div
+          style={{
+            width:        `${clearPct}%`,
+            height:       '100%',
+            opacity:      isSolid ? 0.6 : 0.35,
+            border:       borderStyle,
+            borderRight:  'none',
+            borderRadius: '2px 0 0 2px',
+            backgroundImage: `repeating-linear-gradient(
+              45deg,
+              transparent,
+              transparent 3px,
+              rgba(0,0,0,0.18) 3px,
+              rgba(0,0,0,0.18) 5px
+            )`,
+            backgroundColor: 'rgba(200,200,200,0.25)',
+            flexShrink: 0,
+          }}
+          title={`Zona Clearance 5m — ${ship.nama_kapal}`}
+        />
+
+        {/* ── KANAN: Badan Kapal / LOA (sisi pos_start / meter rendah) ── */}
+        <div
+          className="cursor-pointer hover:brightness-110 transition-all relative flex items-center justify-center overflow-hidden"
+          style={{
+            width:           `${bodyPct}%`,
+            height:          '100%',
+            backgroundColor: ship.color,
+            opacity:         isSolid ? 1 : 0.6,
+            border:          borderStyle,
+            borderLeft:      'none',
+            borderRadius:    '0 2px 2px 0',
+            boxShadow:       isSolid ? '0 2px 6px rgba(0,0,0,0.3)' : 'none',
+            flexShrink: 0,
+          }}
+          title={`${ship.nama_kapal || 'Ship'} | LOA: ${loa}m | Pos: ${posStart}–${posEnd}m | ${ship.status_request}`}
+          onClick={() => onShipClick && onShipClick(ship)}
+        >
+          <span style={{ fontSize: '11px', fontWeight: '800', color: '#000000' }} className="truncate px-1">
+            {ship.nama_kapal || ''}
+          </span>
+        </div>
       </div>
     );
   };
+
 
   return (
     <div className="w-full overflow-x-auto pb-2 select-none" style={{ touchAction: 'pan-x' }}>
@@ -297,7 +358,15 @@ export default function BerthingCanvas({ bookings = [], dockLength = MAX_LENGTH,
                 <div className="w-4 h-1.5 bg-black rounded-full" />
                 <span className="text-[8px] font-black text-black leading-tight">FRONTAL<br/>FRAME</span>
               </div>
+              <div className="flex items-center gap-1 border-t border-gray-300 pt-0.5">
+                <div className="w-[10px] h-[14px] border border-black" style={{
+                  backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 2px, rgba(0,0,0,0.25) 2px, rgba(0,0,0,0.25) 4px)',
+                  backgroundColor: 'rgba(200,200,200,0.3)',
+                }} />
+                <span className="text-[8px] font-black text-black leading-tight">CLEARANCE<br/>5M</span>
+              </div>
             </div>
+
           </div>
         </div>
       </div>
