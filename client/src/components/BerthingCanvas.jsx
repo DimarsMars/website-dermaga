@@ -59,15 +59,30 @@ export default function BerthingCanvas({ bookings = [], dockLength = MAX_LENGTH,
    * Returns ships with a `lane` property + total lane count.
    */
   const assignLanes = (ships) => {
-    // Sort by leftPercent ascending (high-meter ships first, i.e. further left on canvas)
-    const sorted = [...ships].sort((a, b) => a.leftPercent - b.leftPercent);
+    /**
+     * Urutan sort 2 tahap untuk lane yang konsisten:
+     * 1. status_request: 'pending' diproses DULU → menempati lane 0 (atas)
+     *    baru 'approved' → menumpuk di lane bawahnya (mendekati dermaga)
+     * 2. Tie-break: leftPercent ascending (kiri kanvas = meter besar)
+     *
+     * HTML merender top:0 di atas. Dermaga ada di BAWAH.
+     * Jadi kapal Approved harus mendapat lane index yang LBH BESAR agar posisinya
+     * di bawah (mepet dermaga).
+     */
+    const STATUS_PRIORITY = { pending: 0, approved: 1 };
+    const sorted = [...ships].sort((a, b) => {
+      const pa = STATUS_PRIORITY[a.status_request] ?? 2;
+      const pb = STATUS_PRIORITY[b.status_request] ?? 2;
+      if (pa !== pb) return pa - pb;          // pending sebelum approved
+      return a.leftPercent - b.leftPercent;   // tie-break: kiri ke kanan
+    });
+
     const lanes = [];
 
     sorted.forEach((ship) => {
       // Gunakan posisi BODY saja (tanpa clearance) untuk deteksi overlap lane.
       // Clearance (5m) ada di KIRI blok (sisi meter tinggi/pos_end).
-      // Body mulai setelah clearance: leftPercent + clearanceWidthPercent.
-      const clearW = ship.clearanceWidthPercent || 0;
+      const clearW    = ship.clearanceWidthPercent || 0;
       const bodyStart = ship.leftPercent + clearW;
       const bodyEnd   = ship.leftPercent + ship.widthPercent;
 
@@ -77,7 +92,6 @@ export default function BerthingCanvas({ bookings = [], dockLength = MAX_LENGTH,
           const oClearW    = other.clearanceWidthPercent || 0;
           const oBodyStart = other.leftPercent + oClearW;
           const oBodyEnd   = other.leftPercent + other.widthPercent;
-          // Overlap hanya jika body fisik benar-benar bersilangan
           return bodyStart < oBodyEnd && bodyEnd > oBodyStart;
         });
         if (!overlaps) {
@@ -167,7 +181,7 @@ export default function BerthingCanvas({ bookings = [], dockLength = MAX_LENGTH,
     const bodyPct  = (loa / totalM) * 100;
 
     const totalWidthPercent = Math.max((totalM / dockLength) * 98, 1.5);
-    const topPx    = lane * LANE_HEIGHT + 2;
+    const topPx = lane * LANE_HEIGHT + 2;
     const heightPx = LANE_HEIGHT - 4;
 
     const borderStyle  = isSolid ? '2.5px solid #000000' : '2px dashed #555555';
@@ -239,7 +253,7 @@ export default function BerthingCanvas({ bookings = [], dockLength = MAX_LENGTH,
         {/* ================= LAYER 2 (ATAS): Inactive/Pending Ships ================= */}
         {inactiveShips.length > 0 && (
           <div className="relative w-full mb-0.5" style={{ height: `${inactiveData.laneCount * LANE_HEIGHT + 4}px` }}>
-            {inactiveShips.map(renderShipBlock)}
+          {inactiveShips.map(renderShipBlock)}
           </div>
         )}
 
@@ -347,23 +361,19 @@ export default function BerthingCanvas({ bookings = [], dockLength = MAX_LENGTH,
                 <span className="text-[9px] font-black text-black leading-none">50 TON</span>
               </div>
               <div className="flex items-center gap-1">
-                <div className="w-[10px] h-[14px] bg-[#22C55E] border border-black" />
-                <span className="text-[9px] font-black text-black leading-none">100 TON</span>
-              </div>
-              <div className="flex items-center gap-1">
                 <div className="w-[10px] h-[14px] bg-[#EF4444] border border-black" />
                 <span className="text-[9px] font-black text-black leading-none">150 TON</span>
               </div>
-              <div className="flex items-center gap-2 border-t border-gray-300">
+              <div className="flex items-center gap-2 border-gray-300">
                 <div className="w-4 h-1.5 bg-black rounded-full" />
                 <span className="text-[8px] font-black text-black leading-tight">FRONTAL<br/>FRAME</span>
               </div>
-              <div className="flex items-center gap-1 border-t border-gray-300 pt-0.5">
+              <div className="flex items-center gap-1 border-gray-300">
                 <div className="w-[10px] h-[14px] border border-black" style={{
                   backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 2px, rgba(0,0,0,0.25) 2px, rgba(0,0,0,0.25) 4px)',
                   backgroundColor: 'rgba(200,200,200,0.3)',
                 }} />
-                <span className="text-[8px] font-black text-black leading-tight">CLEARANCE<br/>5M</span>
+                <span className="text-[8px] font-black text-black leading-tight">CLEARANCE 5M</span>
               </div>
             </div>
 
