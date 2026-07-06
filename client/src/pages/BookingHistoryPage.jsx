@@ -12,6 +12,8 @@ export default function BookingHistoryPage() {
   const [filterMonth, setFilterMonth] = useState(new Date().getMonth() + 1);
   const [filterYear, setFilterYear] = useState(new Date().getFullYear());
   const [exporting, setExporting] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   // Activity Log Modal state
   const [logModalOpen, setLogModalOpen] = useState(false);
@@ -120,6 +122,17 @@ export default function BookingHistoryPage() {
       return true;
     });
   }, [bookings, filterMonth, filterYear, filterDay, canFilterByDate, user]);
+
+  // Reset ke halaman 1 setiap kali filter berubah
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterMonth, filterYear, filterDay]);
+
+  const totalPages = Math.ceil(filteredBookings.length / itemsPerPage);
+  const paginatedBookings = filteredBookings.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   const totalRequests = filteredBookings.length;
   const approvedCount = filteredBookings.filter((b) => b.status === 'approved' || b.status_request === 'approved').length;
@@ -295,9 +308,9 @@ export default function BookingHistoryPage() {
                     </td>
                   </tr>
                 ) : (
-                  filteredBookings.map((booking, index) => (
+                  paginatedBookings.map((booking, index) => (
                     <tr key={booking.id_booking} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 text-gray-600">{index + 1}</td>
+                      <td className="px-4 py-3 text-gray-600">{(currentPage - 1) * itemsPerPage + index + 1}</td>
                       <td className="px-4 py-3 font-medium text-gray-800">{booking.nama_kapal || booking.ship_name || '-'}</td>
                       <td className="px-4 py-3 text-center text-gray-600">{booking.loa ? Math.round(Number(booking.loa)) : '-'}</td>
                       <td className="px-4 py-3 text-center text-gray-600">
@@ -342,6 +355,44 @@ export default function BookingHistoryPage() {
               </tbody>
             </table>
           </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between mt-4 px-1">
+              <span className="text-sm text-gray-500">
+                Menampilkan {paginatedBookings.length} dari {filteredBookings.length} data
+              </span>
+              <div className="flex gap-1">
+                <button
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1 text-sm rounded-lg border border-gray-300 disabled:opacity-40 hover:bg-gray-100 transition"
+                >
+                  ‹
+                </button>
+                {Array.from({ length: totalPages }, (_, i) => (
+                  <button
+                    key={i + 1}
+                    onClick={() => setCurrentPage(i + 1)}
+                    className={`px-3 py-1 text-sm rounded-lg border transition ${
+                      currentPage === i + 1
+                        ? 'bg-[#1e3a5f] text-white border-[#1e3a5f]'
+                        : 'border-gray-300 hover:bg-gray-100'
+                    }`}
+                  >
+                    {i + 1}
+                  </button>
+                ))}
+                <button
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-1 text-sm rounded-lg border border-gray-300 disabled:opacity-40 hover:bg-gray-100 transition"
+                >
+                  ›
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

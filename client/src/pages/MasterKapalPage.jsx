@@ -408,26 +408,39 @@ export default function MasterKapalPage() {
                 )}
               </tbody>
             </table>
-            {/* Pagination Controls */}
-            {ships.length > itemsPerPage && (
-              <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
-                <p className="text-sm text-gray-600">
-                  Menampilkan {indexOfFirstItem + 1} - {Math.min(indexOfLastItem, ships.length)} dari {ships.length} data
-                </p>
-                <div className="flex gap-2">
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between mt-4 px-1">
+                <span className="text-sm text-gray-500">
+                  Menampilkan {currentShips.length} dari {ships.length} data
+                </span>
+                <div className="flex gap-1">
                   <button
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                     disabled={currentPage === 1}
-                    onClick={() => setCurrentPage(currentPage - 1)}
-                    className="px-3 py-1 text-sm bg-white border border-gray-200 rounded-md hover:bg-gray-50 disabled:opacity-50"
+                    className="px-3 py-1 text-sm rounded-lg border border-gray-300 disabled:opacity-40 hover:bg-gray-100 transition"
                   >
-                    Sebelumnya
+                    ‹
                   </button>
+                  {Array.from({ length: totalPages }, (_, i) => (
+                    <button
+                      key={i + 1}
+                      onClick={() => setCurrentPage(i + 1)}
+                      className={`px-3 py-1 text-sm rounded-lg border transition ${
+                        currentPage === i + 1
+                          ? 'bg-[#1e3a5f] text-white border-[#1e3a5f]'
+                          : 'border-gray-300 hover:bg-gray-100'
+                      }`}
+                    >
+                      {i + 1}
+                    </button>
+                  ))}
                   <button
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                     disabled={currentPage === totalPages}
-                    onClick={() => setCurrentPage(currentPage + 1)}
-                    className="px-3 py-1 text-sm bg-white border border-gray-200 rounded-md hover:bg-gray-50 disabled:opacity-50"
+                    className="px-3 py-1 text-sm rounded-lg border border-gray-300 disabled:opacity-40 hover:bg-gray-100 transition"
                   >
-                    Selanjutnya
+                    ›
                   </button>
                 </div>
               </div>
