@@ -1,6 +1,7 @@
 const pool = require('../config/db');
 const { broadcastBerthingUpdate, broadcastNotification } = require('./socket.service');
 const NotificationModel = require('../models/notification.model');
+const { ActivityService, ACTIVITY_TYPES } = require('./activity.service');
 
 /**
  * Booking Status Scheduler
@@ -8,7 +9,8 @@ const NotificationModel = require('../models/notification.model');
  * Runs every 1 minute to automatically update booking statuses:
  * 1. Approved bookings where current time >= eta_in → status = 'active'
  * 2. Active bookings where current time >= etd_out → status = 'inactive', status_request = 'completed'
- * 3. Notify agents 1 hour before departure for active bookings (extend time offer)
+ * 3. Pending bookings where current time >= eta_in → status_request = 'rejected' (Auto-expire/reject unhandled requests)
+ * 4. Notify agents 1 hour before departure for active bookings (extend time offer)
  * 
  * Broadcasts changes via Socket.io so all clients update in realtime.
  */
@@ -80,6 +82,46 @@ async function checkAndUpdateStatuses(io) {
         }
       }
       console.log(`[Scheduler] Completed ${completeResult.rows.length} booking(s)`);
+    }
+
+    // 3. Auto-reject/expire pending bookings: eta_in has passed but never approved/rejected
+    const expireResult = await pool.query(
+      `UPDATE trx_booking
+       SET status_request = 'rejected', updated_at = NOW()
+       WHERE status_request = 'pending'
+         AND eta_in <= $1
+       RETURNING *`,
+      [now]
+    );
+
+    // Broadcast each expired booking
+    if (expireResult.rows.length > 0 && io) {
+      for (const booking of expireResult.rows) {
+        const fullResult = await pool.query(
+          `SELECT tb.*, mk.nama_kapal, mk.loa, ma.agency_name
+           FROM trx_booking tb
+           JOIN master_kapal mk ON tb.id_kapal = mk.id_kapal
+           LEFT JOIN master_agen ma ON tb.id_agen = ma.id_agen
+           WHERE tb.id_booking = $1`,
+          [booking.id_booking]
+        );
+        if (fullResult.rows[0]) {
+          const b = fullResult.rows[0];
+          broadcastBerthingUpdate(io, 'rejected', b);
+
+          // Notifikasi ke agen
+          NotificationModel.create({
+            id_user: b.id_agen,
+            user_type: 'agen',
+            title: 'Booking Ditolak Otomatis',
+            message: `Booking Anda untuk kapal ${b.nama_kapal} ditolak secara otomatis karena jadwal kedatangan (ETA) sudah terlewat sebelum diproses.`,
+            related_booking_id: b.id_booking,
+          }).then(notification => {
+            broadcastNotification(io, b.id_agen, 'agen', notification);
+          }).catch(console.error);
+        }
+      }
+      console.log(`[Scheduler] Auto-rejected ${expireResult.rows.length} expired pending booking(s)`);
     }
 
     // 3. Notify agents 1 hour before departure for active bookings (extend time offer)
