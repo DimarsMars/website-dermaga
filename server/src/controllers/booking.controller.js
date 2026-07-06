@@ -213,7 +213,7 @@ const bookingController = {
 
       // Log activity
       ActivityService.logActivity(req.user.id, req.user.role, ACTIVITY_TYPES.BOOKING_APPROVED,
-        `Booking #${result.booking.id_booking} disetujui oleh ${req.user.username}`,
+        `Booking #${result.booking.id_booking} untuk kapal ${result.booking.nama_kapal || '-'} disetujui oleh ${req.user.username}`,
         result.booking.id_booking
       ).catch(err => console.error('Error logging activity:', err));
 
@@ -260,7 +260,7 @@ const bookingController = {
 
       // Log activity
       ActivityService.logActivity(req.user.id, req.user.role, ACTIVITY_TYPES.BOOKING_REJECTED,
-        `Booking #${result.booking.id_booking} ditolak oleh ${req.user.username}`,
+        `Booking #${result.booking.id_booking} untuk kapal ${result.booking.nama_kapal || '-'} ditolak oleh ${req.user.username}`,
         result.booking.id_booking
       ).catch(err => console.error('Error logging activity:', err));
 
@@ -333,7 +333,7 @@ const bookingController = {
 
       // Log activity
       ActivityService.logActivity(req.user.id, req.user.role, ACTIVITY_TYPES.BOOKING_EXTENDED,
-        `Permintaan perpanjangan Booking #${result.booking.id_booking} oleh ${req.user.username}`,
+        `Permintaan perpanjangan Booking #${result.booking.id_booking} untuk kapal ${result.booking.nama_kapal || '-'} oleh ${req.user.username}`,
         result.booking.id_booking
       ).catch(err => console.error('Error logging activity:', err));
 
@@ -380,7 +380,7 @@ const bookingController = {
 
       // Log activity
       ActivityService.logActivity(req.user.id, req.user.role, ACTIVITY_TYPES.BOOKING_EXTENDED,
-        `Perpanjangan Booking #${result.booking.id_booking} disetujui oleh ${req.user.username}`,
+        `Perpanjangan Booking #${result.booking.id_booking} untuk kapal ${result.booking.nama_kapal || '-'} disetujui oleh ${req.user.username}`,
         result.booking.id_booking
       ).catch(err => console.error('Error logging activity:', err));
 
@@ -469,7 +469,7 @@ const bookingController = {
 
       // Log activity
       ActivityService.logActivity(req.user.id, req.user.role, ACTIVITY_TYPES.POSITION_EDITED,
-        `Posisi Booking #${result.booking.id_booking} direvisi oleh ${req.user.username}`,
+        `Posisi Booking #${result.booking.id_booking} untuk kapal ${result.booking.nama_kapal || '-'} direvisi oleh ${req.user.username}`,
         result.booking.id_booking
       ).catch(err => console.error('Error logging activity:', err));
 
@@ -554,15 +554,15 @@ const bookingController = {
 
       // LOG ACTIVITY SECARA DINAMIS SESUAI AKSI
       let activityType = ACTIVITY_TYPES.POSITION_EDITED;
-      let activityDesc = `Booking #${result.booking.id_booking} direvisi oleh ${req.user.username}`;
+      let activityDesc = `Booking #${result.booking.id_booking} untuk kapal ${result.booking.nama_kapal || '-'} direvisi oleh ${req.user.username}`;
 
       if (isStatusChanged && !isOperationalChanged) {
         if (result.booking.status_request === 'approved') {
           activityType = ACTIVITY_TYPES.BOOKING_APPROVED;
-          activityDesc = `Booking #${result.booking.id_booking} disetujui oleh ${req.user.username}`;
+          activityDesc = `Booking #${result.booking.id_booking} untuk kapal ${result.booking.nama_kapal || '-'} disetujui oleh ${req.user.username}`;
         } else if (result.booking.status_request === 'rejected') {
           activityType = ACTIVITY_TYPES.BOOKING_REJECTED;
-          activityDesc = `Booking #${result.booking.id_booking} ditolak oleh ${req.user.username}`;
+          activityDesc = `Booking #${result.booking.id_booking} untuk kapal ${result.booking.nama_kapal || '-'} ditolak oleh ${req.user.username}`;
         }
       }
 
