@@ -72,21 +72,23 @@ export default function BerthingPlanPage() {
       <div className="max-w-7xl mx-auto px-0 sm:px-6 lg:px-8">
         <div className="card p-2 mb-5">
           {/* Unified date filter */}
-          <div className="flex items-center gap-3 mb-3 px-2">
-            <label className="text-sm font-semibold text-[#1e3a5f]">Tampilkan tanggal:</label>
-            <input
-              type="date"
-              value={filterDate}
-              onChange={(e) => setFilterDate(e.target.value)}
-              className="input-field w-auto text-sm"
-            />
-            <button
-              onClick={() => setFilterDate(new Date().toISOString().split('T')[0])}
-              className="px-3 py-1.5 text-xs font-medium bg-[#1e3a5f] text-white rounded-lg hover:bg-[#2a4f7f] transition-colors"
-            >
-              Hari Ini
-            </button>
-            <div className="flex items-center gap-2 ml-auto text-xs text-gray-500">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-3 px-2">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+              <label className="text-sm font-semibold text-[#1e3a5f]">Tampilkan tanggal:</label>
+              <input
+                type="date"
+                value={filterDate}
+                onChange={(e) => setFilterDate(e.target.value)}
+                className="input-field w-auto text-sm"
+              />
+              <button
+                onClick={() => setFilterDate(new Date().toISOString().split('T')[0])}
+                className="px-3 py-1.5 text-xs font-medium bg-[#1e3a5f] text-white rounded-lg hover:bg-[#2a4f7f] transition-colors whitespace-nowrap"
+              >
+                Hari Ini
+              </button>
+            </div>
+            <div className="flex items-center gap-3 text-xs text-gray-500">
               <span className="flex items-center gap-1">
                 <span className="inline-block w-3 h-3 rounded-sm bg-[#34D399] border border-black"></span>
                 Active
@@ -105,12 +107,12 @@ export default function BerthingPlanPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
         {/* Data Table */}
-        <div className="card overflow-hidden">
-          <div className="flex items-center justify-between mb-4">
+        <div className="card overflow-hidden p-3 sm:p-4 mb-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
             <h2 className="text-lg font-semibold text-[#1e3a5f]">Data Booking</h2>
             <button
               onClick={() => setShowAddModal(true)}
-              className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-all duration-200 shadow-sm flex items-center gap-1.5"
+              className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-all duration-200 shadow-sm flex items-center gap-1.5 whitespace-nowrap"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -197,7 +199,9 @@ export default function BerthingPlanPage() {
                             : '-'}
                         </span>
                       </td>
-                      <td className="px-1.5 py-2 text-gray-600 max-w-[80px] truncate">{booking.keterangan || '-'}</td>
+                      <td className="px-1.5 py-2 text-gray-600 max-w-[80px] truncate" title={booking.keterangan || ''}>
+                        {booking.keterangan || '-'}
+                      </td>
                       {canEdit && (
                       <td className="px-1.5 py-2 text-center">
                         <div className="flex items-center justify-center gap-0.5">
