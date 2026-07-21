@@ -262,8 +262,20 @@ const BookingService = {
       };
     }
 
+    const newEtdDate = new Date(newEtdOut);
+    const currentEtdDate = new Date(booking.etd_out);
+    const now = new Date();
+
+    // Validate that new ETD is not in the past
+    if (newEtdDate < now) {
+      return {
+        success: false,
+        error: { code: 'VALIDATION_FIELDS', message: 'New departure time cannot be in the past', status: 422 },
+      };
+    }
+
     // Validate that new ETD is after current ETD
-    if (new Date(newEtdOut) <= new Date(booking.etd_out)) {
+    if (newEtdDate <= currentEtdDate) {
       return {
         success: false,
         error: { code: 'VALIDATION_FIELDS', message: 'New departure time must be after current departure time', status: 422 },
