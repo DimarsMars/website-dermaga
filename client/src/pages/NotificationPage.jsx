@@ -13,6 +13,7 @@ export default function NotificationPage() {
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
   const [extendBooking, setExtendBooking] = useState(null); // booking being extended (modal)
+  const [activeNotifId, setActiveNotifId] = useState(null);
   const canApprove = user?.role === 'petugas' || user?.role === 'admin';
 
   useEffect(() => {
@@ -26,7 +27,33 @@ export default function NotificationPage() {
     setLoading(true);
     try {
       const res = await api.get('/notifications');
-      setNotifications(res.data.data || []);
+      let notifs = res.data.data || [];
+
+      // SINKRONISASI STATUS EXTEND:
+      // Agar saat di-refresh tombol tetap mati (is_submitted = true)
+      if (user?.role === 'agen') {
+        try {
+          // Ambil data booking milik agen ini
+          const bRes = await api.get('/bookings');
+          const bookings = bRes.data.data || [];
+          
+          notifs = notifs.map(n => {
+            // Jika ini adalah notifikasi extend
+            if (n.title === 'Waktu Booking Hampir Habis' && n.related_booking_id) {
+              const b = bookings.find(x => x.id_booking === n.related_booking_id);
+              // Jika booking tersebut sudah diajukan extend-nya (pending) atau sudah disetujui
+              if (b && (b.extend_status === 'pending' || b.extend_status === 'approved')) {
+                return { ...n, is_submitted: true };
+              }
+            }
+            return n;
+          });
+        } catch (e) {
+          console.error("Gagal sinkronisasi status booking dengan notifikasi:", e);
+        }
+      }
+
+      setNotifications(notifs);
     } catch (err) {
       console.error('Failed to fetch notifications:', err);
     } finally {
@@ -119,6 +146,7 @@ export default function NotificationPage() {
         return;
       }
       setExtendBooking(booking);
+      setActiveNotifId(notif.id_notif);
     } catch (err) {
       setToast({ message: err.response?.data?.error?.message || 'Gagal memuat data booking', type: 'error' });
     }
