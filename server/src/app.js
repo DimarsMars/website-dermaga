@@ -42,7 +42,7 @@ const authLimiter = rateLimit({
 app.use('/api/auth', authLimiter);
 
 // Health check
-app.get('/', (req, res) => {
+app.get('/api/health', (req, res) => {
   res.json({ message: 'Dock Pre-Booking Monitoring API' });
 });
 
