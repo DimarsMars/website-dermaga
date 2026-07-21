@@ -67,6 +67,12 @@ export default function ExtendTimeForm({ booking, onSuccess, showToast }) {
 
     const newEtdDate = new Date(newEtdIso);
     const currentEtdDate = new Date(booking.etd_out);
+    const now = new Date();
+
+    if (newEtdDate < now) {
+      setValidationError('Waktu keberangkatan baru tidak boleh berada di masa lalu');
+      return;
+    }
 
     if (newEtdDate <= currentEtdDate) {
       setValidationError('Waktu keberangkatan baru harus setelah ETD saat ini');
