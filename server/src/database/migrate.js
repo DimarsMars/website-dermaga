@@ -25,6 +25,7 @@ const SEED_FILE = path.join(__dirname, 'seed.sql');
 const ADDON_FILES = [
   'add_ship_columns.sql',
   'add_notif_booking_ref.sql',
+  'add_activity_booking_id.sql',
   'add_extend_columns.sql',
   'add_completed_status.sql',
   'add_auth_columns.sql',

@@ -86,7 +86,8 @@ CREATE TABLE log_activity (
   user_type       VARCHAR(20) NOT NULL CHECK (user_type IN ('agen', 'petugas', 'admin')),
   date_time       TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   activity_type   VARCHAR(50) NOT NULL,
-  keterangan      TEXT
+  keterangan      TEXT,
+  id_booking      INTEGER
 );
 
 -- ============================================================
@@ -126,3 +127,4 @@ CREATE INDEX idx_notifikasi_is_read ON notifikasi(is_read);
 -- Activity log lookup by user
 CREATE INDEX idx_log_activity_id_user ON log_activity(id_user, user_type);
 CREATE INDEX idx_log_activity_date_time ON log_activity(date_time);
+CREATE INDEX idx_log_activity_id_booking ON log_activity(id_booking);
