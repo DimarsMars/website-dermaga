@@ -316,7 +316,7 @@ async function resetPassword(req, res) {
       const resetLink = `${process.env.CLIENT_URL}/reset-password/${token}`;
 
       await transporter.sendMail({
-        from: `"Pra-Booking Dermaga" <${process.env.EMAIL_USER}>`, // Menampilkan nama pengirim yang resmi
+        from: process.env.EMAIL_FROM,
         to: email,
         subject: '🔒 Tautan Pemulihan Kata Sandi Anda',
         html: `

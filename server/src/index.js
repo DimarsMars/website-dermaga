@@ -37,6 +37,12 @@ function validateEnvironment() {
     if (!process.env.RECAPTCHA_SECRET_KEY) {
       console.warn('Warning: RECAPTCHA_SECRET_KEY not configured — reCAPTCHA verification will be rejected in production');
     }
+    if (!process.env.RESEND_API_KEY) {
+      throw new Error('RESEND_API_KEY environment variable is required in production');
+    }
+    if (!process.env.EMAIL_FROM) {
+      throw new Error('EMAIL_FROM environment variable is required in production');
+    }
   }
 }
 
